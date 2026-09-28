@@ -271,7 +271,7 @@ function iconNameFromPath(path) {
   return dot > 0 ? file.slice(0, dot) : file
 }
 
-// Width of the workspace miniature, in unscaled px.
+// Longest side of the workspace miniature, in unscaled px.
 function previewWidth(size) {
   if (size === "small") return 260
   if (size === "large") return 520
@@ -279,20 +279,31 @@ function previewWidth(size) {
 }
 
 // Usable area of a monitor in logical layout coordinates, i.e. without the
-// space reserved by bars. `monitor`: { x, y, width, height, scale, reserved }
+// space reserved by bars. `monitor`: { x, y, width, height, scale, transform, reserved }
 // where width/height are physical pixels and reserved is [l, t, r, b].
 function monitorArea(monitor) {
   if (!monitor || !monitor.width || !monitor.height) return null
   var scale = monitor.scale > 0 ? monitor.scale : 1
   var r = monitor.reserved && monitor.reserved.length === 4 ? monitor.reserved : [0, 0, 0, 0]
-  var w = monitor.width / scale
-  var h = monitor.height / scale
+  // Hyprland reports the unrotated mode. Odd Wayland transforms (including
+  // flipped rotations) swap its axes; positions and reserved are already logical.
+  var rotated = (monitor.transform || 0) % 2 === 1
+  var w = (rotated ? monitor.height : monitor.width) / scale
+  var h = (rotated ? monitor.width : monitor.height) / scale
   return {
     x: (monitor.x || 0) + r[0],
     y: (monitor.y || 0) + r[1],
     width: Math.max(1, w - r[0] - r[2]),
     height: Math.max(1, h - r[1] - r[3])
   }
+}
+
+// Fit the entire workspace without stretching it or cropping the lower windows.
+function previewDimensions(area, desiredExtent, maxWidth, maxHeight) {
+  var ratio = area && area.width > 0 && area.height > 0 ? area.height / area.width : 9 / 16
+  var desiredWidth = desiredExtent / Math.max(1, ratio)
+  var width = Math.max(1, Math.min(desiredWidth, maxWidth, maxHeight / ratio))
+  return { width: width, height: width * ratio }
 }
 
 // Places windows inside a width x height miniature of `area`, where they
@@ -393,7 +404,7 @@ if (typeof module !== "undefined") {
     DEFAULTS: DEFAULTS, resolveSettings: resolveSettings, showsApps: showsApps,
     densityMetrics: densityMetrics, normalizeAddress: normalizeAddress,
     agentStates: agentStates, parsePids: parsePids,
-    previewWidth: previewWidth, monitorArea: monitorArea, previewLayout: previewLayout, durationFor: durationFor,
+    previewWidth: previewWidth, previewDimensions: previewDimensions, monitorArea: monitorArea, previewLayout: previewLayout, durationFor: durationFor,
     workspaceIds: workspaceIds, workspaceLabel: workspaceLabel, appKey: appKey,
     sortWindows: sortWindows, iconItems: iconItems, truncate: truncate,
     focusedLabel: focusedLabel, webAppHost: webAppHost, appIdCandidates: appIdCandidates, iconPathScore: iconPathScore,

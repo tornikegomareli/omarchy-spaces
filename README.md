@@ -12,6 +12,8 @@ Spaces is a workspace switcher for the [Omarchy](https://omarchy.org) bar. Each 
 
 Hover another workspace to see it live, laid out the way it is on screen. Click a window in the preview to jump to it.
 
+Previews follow the monitor's orientation, including portrait displays, and shrink to fit the available screen space while keeping the full workspace visible. The size setting controls the longest side, so portrait and landscape previews have a comparable size.
+
 <p align="center">
   <img src=".github/assets/film-preview.png" width="100%" alt="Hovering workspace 2 opens a live preview with omarchy.org and Neovim side by side" />
 </p>

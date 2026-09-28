@@ -132,6 +132,56 @@ test("previewLayout scales real positions and puts floating last", () => {
   assert.deepStrictEqual([out[2].x, out[2].y, out[2].width, out[2].height], [10, 10, 20, 10])
 })
 
+test("monitorArea handles every rotation before scale and logical reservations", () => {
+  for (let transform = 0; transform < 8; transform++) {
+    const area = M.monitorArea({ x: -1200, y: -400, width: 2560, height: 1440,
+      scale: 1.25, transform, reserved: [10, 20, 30, 40] })
+    assert.deepStrictEqual(area, { x: -1190, y: -380,
+      width: (transform % 2 ? 1152 : 2048) - 40,
+      height: (transform % 2 ? 2048 : 1152) - 60 })
+  }
+})
+
+test("portrait preview keeps both stacked windows fully visible", () => {
+  const area = M.monitorArea({ x: -1440, y: -480, width: 2560, height: 1440,
+    transform: 1, scale: 1, reserved: [0, 0, 0, 26] })
+  const size = M.previewDimensions(area, 380, 1000, 900)
+  assert.strictEqual(size.height, 380)
+  assert.ok(size.height > size.width)
+  const windows = [
+    { address: "top", at: [-1440, -480], size: [1440, 1267] },
+    { address: "bottom", at: [-1440, 787], size: [1440, 1267] }
+  ]
+  const out = M.previewLayout(windows, area, size.width, size.height)
+  assert.strictEqual(out[0].height, out[1].height)
+  assert.strictEqual(out[1].y + out[1].height, size.height)
+  assert.strictEqual(out[1].width, size.width)
+})
+
+test("previewDimensions fits portrait workspaces on short or narrow screens", () => {
+  const area = { width: 1440, height: 2534 }
+  for (const bounds of [[1000, 400], [200, 900]]) {
+    const size = M.previewDimensions(area, 520, ...bounds)
+    assert.ok(size.width <= bounds[0])
+    assert.ok(size.height <= bounds[1])
+    assert.ok(Math.abs(size.width / size.height - area.width / area.height) < 1e-10)
+  }
+  assert.deepStrictEqual(M.previewDimensions({ width: 1600, height: 900 }, 380, 1000, 900),
+    { width: 380, height: 213.75 })
+  assert.deepStrictEqual(M.previewDimensions(null, 380, 1000, 900),
+    { width: 380, height: 213.75 })
+})
+
+test("preview size has the same longest side and area in either orientation", () => {
+  for (const preset of ["small", "medium", "large"]) {
+    const extent = M.previewWidth(preset)
+    const landscape = M.previewDimensions({ width: 1600, height: 900 }, extent, 2000, 2000)
+    const portrait = M.previewDimensions({ width: 900, height: 1600 }, extent, 2000, 2000)
+    assert.strictEqual(portrait.height, landscape.width)
+    assert.strictEqual(portrait.width, landscape.height)
+  }
+})
+
 test("previewLayout clamps windows hanging off screen", () => {
   const out = M.previewLayout([{ address: "a", at: [-100, 0], size: [300, 100] }], { x: 0, y: 0, width: 1000, height: 1000 }, 100, 100)
   assert.deepStrictEqual([out[0].x, out[0].width], [0, 20])
