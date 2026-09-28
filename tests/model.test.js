@@ -171,6 +171,39 @@ test("agentStates picks the nearest window and the most urgent state", () => {
   assert.deepStrictEqual(M.agentStates(agents, windows), { 100: "waiting", 300: "done" })
 })
 
+test("normalizeAgentState accepts only badge states", () => {
+  assert.strictEqual(M.normalizeAgentState("waiting"), "waiting")
+  assert.strictEqual(M.normalizeAgentState("end"), "")
+  assert.strictEqual(M.normalizeAgentState("exploding"), "")
+  assert.strictEqual(M.normalizeAgentState(undefined), "")
+})
+
+test("agentProcessIds collects one live process per active session", () => {
+  const agents = {
+    a: { state: "working", pids: [101, 1] },
+    b: { state: "waiting", pids: [202, 101] },
+    c: { state: "waiting", pids: [101, 303] },
+    d: { state: "done", pids: [404, 1] },
+    e: { state: "working", pids: ["nope", 1] }
+  }
+  assert.deepStrictEqual(M.agentProcessIds(agents), [101, 202])
+})
+
+test("pruneDeadAgents removes only dead live claims", () => {
+  const agents = {
+    live: { state: "working", pids: [101, 1] },
+    dead: { state: "waiting", pids: [202, 1] },
+    finished: { state: "done", pids: [303, 1] },
+    malformed: { state: "working", pids: [] }
+  }
+  assert.deepStrictEqual(M.pruneDeadAgents(agents, [101]), {
+    live: { state: "working", pids: [101, 1] },
+    finished: { state: "done", pids: [303, 1] },
+    malformed: { state: "working", pids: [] }
+  })
+  assert.strictEqual(M.pruneDeadAgents(agents, [101, 202]), agents)
+})
+
 test("parsePids drops junk and init", () => {
   assert.deepStrictEqual(M.parsePids("12,abc,1,,34"), [12, 34])
 })

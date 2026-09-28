@@ -1,0 +1,26 @@
+{
+  "name": "@farzadhayat/cursor-spaces",
+  "version": "1.0.0",
+  "description": "Agent-status reporter for Cursor, feeding the Omarchy Spaces bar widget",
+  "type": "module",
+  "bin": {
+    "cursor-spaces-hook": "./cursor-reporter.js"
+  },
+  "files": [
+    "README.md",
+    "cursor-reporter.js",
+    "cursor-state.js"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tornikegomareli/omarchy-spaces.git",
+    "directory": "hooks/cursor"
+  },
+  "keywords": [
+    "cursor",
+    "cursor-hooks",
+    "omarchy",
+    "hyprland"
+  ]
+}

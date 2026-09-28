@@ -112,9 +112,15 @@ Panel {
 
   // ------------------------------------------------------------ agents
 
-  // Coding agents report in through hooks/claude-hook:
+  // Coding agents report in through reporter hooks (for example,
+  // hooks/claude-hook):
   //   { [session]: { state: "working" | "waiting" | "done" | "idle", pids: [...] } }
+  // Reporters are trusted for their own lifecycle, but not forever: a crashed
+  // reporter never sends "end", so live claims are rechecked against /proc.
   property var agents: ({})
+  property var liveAgentPids: ({})
+  property bool agentProbeSeen: false
+  property bool agentProbeFailed: false
 
   readonly property var pidByAddress: {
     var map = ({})
@@ -158,13 +164,67 @@ Panel {
   function applyAgent(session, state, pidsCsv) {
     var next = ({})
     for (var k in root.agents) if (k !== session) next[k] = root.agents[k]
-    if (state !== "end") {
-      var agent = { state: state, pids: Model.parsePids(pidsCsv) }
-      // Finishing in the window you are looking at needs no check mark.
-      if (state === "done" && root.agentWindowPid(agent) === root.activeWindowPid()) agent.state = "idle"
-      next[session] = agent
+    if (state === "end") {
+      root.agents = next
+      return
     }
+    var reported = Model.normalizeAgentState(state)
+    if (!reported) return
+    var agent = { state: reported, pids: Model.parsePids(pidsCsv) }
+    // Finishing in the window you are looking at needs no check mark.
+    if (reported === "done" && root.agentWindowPid(agent) === root.activeWindowPid()) agent.state = "idle"
+    next[session] = agent
     root.agents = next
+  }
+
+  // A crashed reporter leaves working/waiting behind with no "end". Recheck
+  // the agent process itself: ancestors and terminals can outlive the agent.
+  function startAgentProbe() {
+    if (agentProbe.running) return
+    var pids = Model.agentProcessIds(root.agents)
+    if (!pids.length) return
+    root.liveAgentPids = ({})
+    root.agentProbeSeen = false
+    root.agentProbeFailed = false
+    agentProbe.command = ["bash", "-c", [
+      'echo "spaces-agent-probe";',
+      'if [[ ! -d /proc ]]; then echo "spaces-agent-probe-unavailable"; exit 0; fi;',
+      'for pid in ' + pids.join(" ") + '; do',
+      '[[ -r /proc/$pid/stat ]] || continue;',
+      'stat=$(cat "/proc/$pid/stat" 2>/dev/null) || continue;',
+      'rest=${stat##*) };',
+      '[[ ${rest:1:1} != "Z" ]] && echo "$pid";',
+      'done'
+    ].join("\n")]
+    agentProbe.running = true
+  }
+
+  function noteAgentProbe(line) {
+    var text = String(line || "").trim()
+    if (text === "spaces-agent-probe") {
+      root.agentProbeSeen = true
+      return
+    }
+    if (text === "spaces-agent-probe-unavailable") {
+      root.agentProbeFailed = true
+      return
+    }
+    var pid = Number(text)
+    if (pid > 1) root.liveAgentPids[pid] = true
+  }
+
+  function finishAgentProbe() {
+    var alive = root.liveAgentPids
+    var seen = root.agentProbeSeen
+    var failed = root.agentProbeFailed
+    root.liveAgentPids = ({})
+    root.agentProbeSeen = false
+    root.agentProbeFailed = false
+    // Never reap on a broken probe: an empty result must mean dead agents,
+    // not a failed check.
+    if (!seen || failed) return
+    // pruneDeadAgents takes an array; liveAgentPids is a dedup map.
+    root.agents = Model.pruneDeadAgents(root.agents, Object.keys(alive))
   }
 
   // Seeing a finished agent's window clears its check mark.
@@ -187,6 +247,20 @@ Panel {
   Connections {
     target: Hyprland
     function onActiveToplevelChanged() { Qt.callLater(root.acknowledgeAgents) }
+  }
+
+  Process {
+    id: agentProbe
+    stdout: SplitParser { onRead: function(line) { root.noteAgentProbe(line) } }
+    onExited: root.finishAgentProbe()
+  }
+
+  Timer {
+    id: agentProbeTimer
+    interval: 60000
+    repeat: true
+    running: true
+    onTriggered: root.startAgentProbe()
   }
 
   function appIdOf(toplevel) {

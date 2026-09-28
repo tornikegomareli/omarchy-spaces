@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Agent status: the widget rechecks live `working` and `waiting` claims against
+  Linux process state every minute, so a crashed agent no longer leaves a
+  permanent badge. Finished claims are preserved until acknowledged
+- Agent status: Cursor windows (and terminals running `cursor-agent`) get the
+  same badge as Claude Code terminals. `hooks/cursor/cursor-reporter.js` is a
+  stdio hook script registered in `~/.cursor/hooks.json`, reporting through
+  the existing `omarchy-shell ... agent` entry point, so the widget is
+  unchanged. No `waiting` badge: Cursor exposes no hook for it. The `stop`
+  hook entry sets `"loop_limit": null`, or Cursor disables it after 5 runs
+
 ## 1.0.0
 
 First stable release, ready for the Omarchy plugin marketplace.

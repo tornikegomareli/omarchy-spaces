@@ -370,6 +370,52 @@ function parsePids(csv) {
   return String(csv || "").split(",").map(function(v) { return Number(v) }).filter(function(n) { return n > 1 })
 }
 
+// Only these reporter states can produce a badge. Anything else is rejected at
+// the IPC boundary. "end" is handled separately: it deletes the session.
+var AGENT_REPORT_STATES = { working: true, waiting: true, done: true, idle: true }
+var AGENT_LIVE_STATES = { working: true, waiting: true }
+
+function normalizeAgentState(state) {
+  var value = String(state || "")
+  return AGENT_REPORT_STATES[value] ? value : ""
+}
+
+// The first PID in a report is the agent process itself; the rest are its
+// ancestors. Collect one probe PID per live session.
+function agentProcessIds(agents) {
+  var out = []
+  for (var session in agents) {
+    var agent = agents[session]
+    if (!agent || !AGENT_LIVE_STATES[agent.state]) continue
+    var pid = Number(agent.pids && agent.pids[0])
+    if (!isFinite(pid) || Math.floor(pid) !== pid || pid <= 1) continue
+    if (out.indexOf(pid) === -1) out.push(pid)
+  }
+  out.sort(function(a, b) { return a - b })
+  return out
+}
+
+// Drop live claims whose agent process is gone. Finished and malformed entries
+// are preserved: this is crash cleanup, not state validation.
+function pruneDeadAgents(agents, alivePids) {
+  var alive = {}
+  var list = alivePids || []
+  for (var i = 0; i < list.length; i++) alive[String(Number(list[i]))] = true
+
+  var pruned = false
+  var out = {}
+  for (var session in agents) {
+    var agent = agents[session]
+    var pid = Number(agent && agent.pids && agent.pids[0])
+    if (agent && AGENT_LIVE_STATES[agent.state] && pid > 1 && !alive[String(pid)]) {
+      pruned = true
+      continue
+    }
+    out[session] = agent
+  }
+  return pruned ? out : agents
+}
+
 // Next workspace id when scrolling; wraps around.
 function stepWorkspace(ids, current, delta) {
   if (!ids.length) return current
@@ -392,7 +438,8 @@ if (typeof module !== "undefined") {
   module.exports = {
     DEFAULTS: DEFAULTS, resolveSettings: resolveSettings, showsApps: showsApps,
     densityMetrics: densityMetrics, normalizeAddress: normalizeAddress,
-    agentStates: agentStates, parsePids: parsePids,
+    agentStates: agentStates, parsePids: parsePids, normalizeAgentState: normalizeAgentState,
+    agentProcessIds: agentProcessIds, pruneDeadAgents: pruneDeadAgents,
     previewWidth: previewWidth, monitorArea: monitorArea, previewLayout: previewLayout, durationFor: durationFor,
     workspaceIds: workspaceIds, workspaceLabel: workspaceLabel, appKey: appKey,
     sortWindows: sortWindows, iconItems: iconItems, truncate: truncate,
