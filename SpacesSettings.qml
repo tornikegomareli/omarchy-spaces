@@ -155,6 +155,30 @@ Item {
             ]
           }
 
+          ToggleSetting {
+            label: "Inactive workspace background"
+            description: "Subtle fill behind occupied inactive workspaces"
+            key: "inactiveBackground"
+          }
+
+          ToggleSetting {
+            label: "Hover background"
+            description: "Highlight the workspace under the pointer"
+            key: "hoverBackground"
+          }
+
+          ToggleSetting {
+            label: "Focused window background"
+            description: "Highlight behind the focused window icon"
+            key: "focusedBackground"
+          }
+
+          ToggleSetting {
+            label: "Icon hover background"
+            description: "Highlight behind the hovered app icon"
+            key: "iconHoverBackground"
+          }
+
           ChoiceSetting {
             title: "WORKSPACE LABEL"
             key: "labelStyle"

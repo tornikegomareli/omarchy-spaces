@@ -232,6 +232,30 @@
         "type": "bool",
         "label": "Agent status",
         "default": true
+      },
+      {
+        "key": "inactiveBackground",
+        "type": "bool",
+        "label": "Inactive workspace background",
+        "default": true
+      },
+      {
+        "key": "hoverBackground",
+        "type": "bool",
+        "label": "Hover background",
+        "default": true
+      },
+      {
+        "key": "focusedBackground",
+        "type": "bool",
+        "label": "Focused window background",
+        "default": true
+      },
+      {
+        "key": "iconHoverBackground",
+        "type": "bool",
+        "label": "Icon hover background",
+        "default": true
       }
     ]
   }

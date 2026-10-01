@@ -768,8 +768,8 @@ Panel {
           anchors.fill: parent
           radius: root.pillRadius
           color: pill.active ? root.activeFill()
-            : pill.hovered ? Util.alpha(root.fg, 0.12)
-            : pill.occupied ? Util.alpha(root.fg, 0.06)
+            : (pill.hovered && root.cfg.hoverBackground) ? Util.alpha(root.fg, 0.12)
+            : (pill.occupied && root.cfg.inactiveBackground) ? Util.alpha(root.fg, 0.06)
             : "transparent"
           Behavior on color { enabled: root.fastDur > 0; ColorAnimation { duration: root.fastDur } }
         }
@@ -845,6 +845,7 @@ Panel {
                   readonly property var item: pill.itemMap[modelData] || null
                   readonly property var info: item ? root.appInfo(item.appId) : ({ source: "", name: "" })
                   readonly property bool focusedHere: !!item && item.focused && pill.active
+                  readonly property bool highlightFocused: focusedHere && pill.itemKeys.length > 1
                   readonly property string titleText: root.cfg.focusedTitle && focusedHere && !root.vertical
                     ? Model.focusedLabel(item, info.name, root.cfg.titleLength) : ""
                   readonly property bool hovered: iconMouse.containsMouse
@@ -866,7 +867,7 @@ Panel {
                   Rectangle {
                     anchors.fill: parent
                     radius: Style.cornerRadius > 0 ? Style.space(5) : 0
-                    color: appIcon.focusedHere || appIcon.hovered ? Util.alpha(pill.textColor, 0.18) : "transparent"
+                    color: ((appIcon.highlightFocused && root.cfg.focusedBackground) || (appIcon.hovered && root.cfg.iconHoverBackground)) ? Util.alpha(pill.textColor, 0.18) : "transparent"
                     Behavior on color { enabled: root.fastDur > 0; ColorAnimation { duration: root.fastDur } }
                   }
 

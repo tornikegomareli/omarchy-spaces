@@ -17,6 +17,10 @@ var DEFAULTS = {
   focusedTitle: false,        // show the focused window's title next to its icon
   titleLength: 24,
   activeStyle: "subtle",      // "subtle" | "solid" | "accent"
+  inactiveBackground: true, // subtle fill behind occupied inactive workspaces
+  hoverBackground: true,    // highlight the pill under the pointer
+  focusedBackground: true,  // highlight behind the focused window icon
+  iconHoverBackground: true, // highlight behind the hovered app icon
   labelStyle: "number",       // "number" | "glyph" | "none"
   animations: true,
   animationSpeed: "normal",   // "slow" | "normal" | "fast"
@@ -75,6 +79,10 @@ function resolveSettings(raw) {
     focusedTitle: bool(s.focusedTitle, d.focusedTitle),
     titleLength: clampInt(s.titleLength, 8, 60, d.titleLength),
     activeStyle: oneOf(s.activeStyle, ACTIVE_STYLES, d.activeStyle),
+    inactiveBackground: bool(s.inactiveBackground, d.inactiveBackground),
+    hoverBackground: bool(s.hoverBackground, d.hoverBackground),
+    focusedBackground: bool(s.focusedBackground, d.focusedBackground),
+    iconHoverBackground: bool(s.iconHoverBackground, d.iconHoverBackground),
     labelStyle: oneOf(s.labelStyle, LABEL_STYLES, d.labelStyle),
     animations: bool(s.animations, d.animations),
     animationSpeed: oneOf(s.animationSpeed, SPEEDS, d.animationSpeed),
