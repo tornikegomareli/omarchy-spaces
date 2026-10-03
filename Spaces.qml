@@ -888,10 +888,12 @@ Panel {
                         id: iconImage
                         anchors.fill: parent
                         source: appIcon.info.source
-                        // Decode well above the drawn size: these land at
-                        // roughly 16px on the bar, where every sample counts.
-                        sourceSize.width: root.iconPx * 3
-                        sourceSize.height: root.iconPx * 3
+                        // Decode at exactly the drawn device-pixel size so the
+                        // GPU never resamples; Qt's decoder does the one smooth
+                        // downscale (SVGs rasterise natively at this size).
+                        readonly property real dpr: Window.window ? Window.window.devicePixelRatio : 1
+                        sourceSize.width: Math.round(root.iconPx * dpr)
+                        sourceSize.height: Math.round(root.iconPx * dpr)
                         fillMode: Image.PreserveAspectFit
                         smooth: true
                         // mipmap softens at this size, and nothing here is
@@ -904,7 +906,7 @@ Panel {
                         // Without an explicit size the layer is rasterised at
                         // the item's logical size, throwing the extra detail
                         // away before the effect ever samples it.
-                        layer.textureSize: Qt.size(root.iconPx * 3, root.iconPx * 3)
+                        layer.textureSize: Qt.size(Math.round(root.iconPx * iconImage.dpr), Math.round(root.iconPx * iconImage.dpr))
                         layer.smooth: true
                         layer.effect: MultiEffect { saturation: -1.0 }
                       }
