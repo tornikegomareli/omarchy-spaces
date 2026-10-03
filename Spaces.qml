@@ -888,15 +888,14 @@ Panel {
                         id: iconImage
                         anchors.fill: parent
                         source: appIcon.info.source
-                        // Decode well above the drawn size: these land at
-                        // roughly 16px on the bar, where every sample counts.
-                        sourceSize.width: root.iconPx * 3
-                        sourceSize.height: root.iconPx * 3
+                        // Decode at 2x the drawn size and let mipmapping do the
+                        // final downscale. A 3x decode sampled bilinearly
+                        // without mipmaps skips texels and looks pixelated.
+                        sourceSize.width: root.iconPx * 2
+                        sourceSize.height: root.iconPx * 2
                         fillMode: Image.PreserveAspectFit
                         smooth: true
-                        // mipmap softens at this size, and nothing here is
-                        // downscaled far enough to need it.
-                        mipmap: false
+                        mipmap: true
                         asynchronous: true
                         visible: status === Image.Ready
                         opacity: appIcon.dim
@@ -904,7 +903,7 @@ Panel {
                         // Without an explicit size the layer is rasterised at
                         // the item's logical size, throwing the extra detail
                         // away before the effect ever samples it.
-                        layer.textureSize: Qt.size(root.iconPx * 3, root.iconPx * 3)
+                        layer.textureSize: Qt.size(root.iconPx * 2, root.iconPx * 2)
                         layer.smooth: true
                         layer.effect: MultiEffect { saturation: -1.0 }
                       }
