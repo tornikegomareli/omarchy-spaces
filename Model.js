@@ -219,9 +219,111 @@ function iconItems(windows, groupApps, maxIcons) {
   return { items: items, overflow: overflow }
 }
 
+// Splits text into the characters a reader sees, so an emoji or accented
+// letter is never cut in half. Qt's JS engine has no Intl.Segmenter, no \p{}
+// regexes, and Array.from walks UTF-16 units, so the common joins are done by
+// hand: surrogate pairs, combining marks, kana voicing marks, variation
+// selectors, skin tones, keycaps, ZWJ sequences, flag pairs and tag sequences.
+// Not full UAX #29: Indic spacing marks and conjoining jamo are not joined.
+var JOINING = [
+  [0x300, 0x36F], [0x1AB0, 0x1AFF], [0x1DC0, 0x1DFF], [0x200D, 0x200D],
+  [0x20D0, 0x20FF], [0x3099, 0x309A], [0xFE00, 0xFE0F], [0xFE20, 0xFE2F],
+  [0x1F3FB, 0x1F3FF], [0xE0020, 0xE007F], [0xE0100, 0xE01EF]
+]
+
+// Every East_Asian_Width=W or F range from Unicode 18.0 EastAsianWidth.txt
+// (merged), so CJK, Hangul, kana, fullwidth forms and wide emoji count as
+// two columns.
+var WIDE = [
+  [0x1100, 0x115F], [0x231A, 0x231B], [0x2329, 0x232A], [0x23E9, 0x23EC],
+  [0x23F0, 0x23F0], [0x23F3, 0x23F3], [0x25FD, 0x25FE], [0x2614, 0x2615],
+  [0x2630, 0x2637], [0x2648, 0x2653], [0x267F, 0x267F], [0x268A, 0x268F],
+  [0x2693, 0x2693], [0x26A1, 0x26A1], [0x26AA, 0x26AB], [0x26BD, 0x26BE],
+  [0x26C4, 0x26C5], [0x26CE, 0x26CE], [0x26D4, 0x26D4], [0x26EA, 0x26EA],
+  [0x26F2, 0x26F3], [0x26F5, 0x26F5], [0x26FA, 0x26FA], [0x26FD, 0x26FD],
+  [0x2705, 0x2705], [0x270A, 0x270B], [0x2728, 0x2728], [0x274C, 0x274C],
+  [0x274E, 0x274E], [0x2753, 0x2755], [0x2757, 0x2757], [0x2795, 0x2797],
+  [0x27B0, 0x27B0], [0x27BF, 0x27BF], [0x2B1B, 0x2B1C], [0x2B50, 0x2B50],
+  [0x2B55, 0x2B55], [0x2E80, 0x2E99], [0x2E9B, 0x2EF3], [0x2F00, 0x2FD5],
+  [0x2FF0, 0x303E], [0x3041, 0x3096], [0x3099, 0x30FF], [0x3105, 0x312F],
+  [0x3131, 0x318E], [0x3190, 0x31E5], [0x31EF, 0x321E], [0x3220, 0x3247],
+  [0x3250, 0xA48C], [0xA490, 0xA4C6], [0xA960, 0xA97C], [0xAC00, 0xD7A3],
+  [0xF900, 0xFAFF], [0xFE10, 0xFE19], [0xFE30, 0xFE52], [0xFE54, 0xFE66],
+  [0xFE68, 0xFE6B], [0xFF01, 0xFF60], [0xFFE0, 0xFFE6], [0x16FE0, 0x16FE4],
+  [0x16FF0, 0x16FF6], [0x17000, 0x18CDA], [0x18CFF, 0x18D20],
+  [0x18D80, 0x18DF2], [0x18E00, 0x19191], [0x191A0, 0x191D2],
+  [0x1AFF0, 0x1AFF3], [0x1AFF5, 0x1AFFB], [0x1AFFD, 0x1AFFE],
+  [0x1B000, 0x1B128], [0x1B132, 0x1B132], [0x1B150, 0x1B152],
+  [0x1B155, 0x1B155], [0x1B164, 0x1B168], [0x1B170, 0x1B2FB],
+  [0x1D300, 0x1D356], [0x1D360, 0x1D376], [0x1F004, 0x1F004],
+  [0x1F0CF, 0x1F0CF], [0x1F18E, 0x1F18E], [0x1F191, 0x1F19A],
+  [0x1F1AE, 0x1F1AE], [0x1F200, 0x1F202], [0x1F210, 0x1F23B],
+  [0x1F240, 0x1F248], [0x1F250, 0x1F251], [0x1F260, 0x1F265],
+  [0x1F300, 0x1F320], [0x1F32D, 0x1F335], [0x1F337, 0x1F37C],
+  [0x1F37E, 0x1F393], [0x1F3A0, 0x1F3CA], [0x1F3CF, 0x1F3D3],
+  [0x1F3E0, 0x1F3F0], [0x1F3F4, 0x1F3F4], [0x1F3F8, 0x1F43E],
+  [0x1F440, 0x1F440], [0x1F442, 0x1F4FC], [0x1F4FF, 0x1F53D],
+  [0x1F54B, 0x1F54E], [0x1F550, 0x1F567], [0x1F57A, 0x1F57A],
+  [0x1F595, 0x1F596], [0x1F5A4, 0x1F5A4], [0x1F5FB, 0x1F64F],
+  [0x1F680, 0x1F6C5], [0x1F6CC, 0x1F6CC], [0x1F6D0, 0x1F6D2],
+  [0x1F6D5, 0x1F6D9], [0x1F6DC, 0x1F6DF], [0x1F6EB, 0x1F6EC],
+  [0x1F6F4, 0x1F6FC], [0x1F7DA, 0x1F7DA], [0x1F7E0, 0x1F7EB],
+  [0x1F7F0, 0x1F7F0], [0x1F90C, 0x1F93A], [0x1F93C, 0x1F945],
+  [0x1F947, 0x1F9FF], [0x1FA70, 0x1FA7C], [0x1FA80, 0x1FAC6],
+  [0x1FAC8, 0x1FAC8], [0x1FACC, 0x1FADD], [0x1FADF, 0x1FAEB],
+  [0x1FAEF, 0x1FAFA], [0x20000, 0x2FFFD], [0x30000, 0x3FFFD]
+]
+
+function inRanges(cp, ranges) {
+  for (var i = 0; i < ranges.length; i++)
+    if (cp >= ranges[i][0] && cp <= ranges[i][1]) return true
+  return false
+}
+
+function isFlag(cp) { return cp >= 0x1F1E6 && cp <= 0x1F1FF }
+
+function graphemes(text) {
+  var s = String(text || "")
+  var out = []
+  var joinNext = false
+  var i = 0
+  while (i < s.length) {
+    var cp = s.codePointAt(i)
+    var ch = String.fromCodePoint(cp)
+    i += ch.length
+    var prev = out.length - 1
+    if (prev >= 0 && (joinNext || inRanges(cp, JOINING))) out[prev] += ch
+    else if (prev >= 0 && isFlag(cp) && out[prev].length === 2 && isFlag(out[prev].codePointAt(0))) out[prev] += ch
+    else out.push(ch)
+    joinNext = cp === 0x200D
+  }
+  return out
+}
+
+// Wide characters and emoji take about two Latin columns, so they count
+// double against the title length. U+FE0F and a keycap make any base an emoji.
+function graphemeWidth(g) {
+  var cp = g.codePointAt(0)
+  // Regional indicators are East_Asian_Width=N, but a flag pair draws as an
+  // emoji two columns wide.
+  var wide = inRanges(cp, WIDE) || isFlag(cp) || g.indexOf("\uFE0F") !== -1 || g.indexOf("\u20E3") !== -1
+  return wide ? 2 : 1
+}
+
+// Same contract as a plain .length/.slice truncate, measured in columns.
 function truncate(text, max) {
-  var t = String(text || "")
-  return t.length > max ? t.slice(0, Math.max(1, max - 1)) + "…" : t
+  var chars = graphemes(text)
+  var width = 0
+  for (var i = 0; i < chars.length; i++) width += graphemeWidth(chars[i])
+  if (!(width > max)) return chars.join("")
+  var budget = Math.max(1, max - 1)
+  var out = ""
+  width = 0
+  for (var j = 0; j < chars.length && width + graphemeWidth(chars[j]) <= budget; j++) {
+    out += chars[j]
+    width += graphemeWidth(chars[j])
+  }
+  return out + "…"
 }
 
 // Title shown next to the focused icon. The app name when
@@ -258,7 +360,7 @@ function fallbackLetter(name, appId) {
     var parts = id.split(".")
     label = parts.length > 1 ? parts[parts.length - 1] : id
   }
-  return label.charAt(0).toUpperCase()
+  return (graphemes(label)[0] || "").toUpperCase()
 }
 
 // Chromium-family --app windows use classes like

@@ -66,6 +66,45 @@ test("focusedLabel uses app name for single window, title for many", () => {
   assert.strictEqual(M.focusedLabel({ focused: false, count: 1 }, "Foot", 20), "")
 })
 
+test("truncate keeps ASCII behaviour unchanged", () => {
+  const legacy = (t, max) => t.length > max ? t.slice(0, Math.max(1, max - 1)) + "…" : t
+  const maxes = [NaN, undefined]
+  for (let max = -2; max <= 30; max++) maxes.push(max)
+  for (const t of ["", "a", "foot", "long title here", "~/code/omarchy-spaces — nvim"])
+    for (const max of maxes) assert.strictEqual(M.truncate(t, max), legacy(t, max), t + " @ " + max)
+  assert.strictEqual(M.truncate("", -1), "…")
+  assert.strictEqual(M.truncate(null, -1), "…")
+  assert.strictEqual(M.truncate("abc", NaN), "abc")
+  assert.strictEqual(M.truncate("abc", undefined), "abc")
+})
+
+test("truncate counts wide characters double", () => {
+  assert.strictEqual(M.truncate("한국어", 8), "한국어")
+  assert.strictEqual(M.truncate("터미널 설정 열기", 8), "터미널 …")
+  assert.strictEqual(M.truncate("日本語のタイトル", 8), "日本語…")
+  assert.strictEqual(M.truncate("Vim 설정 파일", 7), "Vim 설…")
+  assert.strictEqual(M.truncate("☕".repeat(8), 8), "☕☕☕…")
+  assert.strictEqual(M.truncate("\uFE50".repeat(8), 8), "\uFE50\uFE50\uFE50…")
+  assert.strictEqual(M.truncate("\u2329abc", 4), "\u2329a…")
+  assert.strictEqual(M.truncate("❤\uFE0F❤\uFE0Fab", 5), "❤\uFE0F❤\uFE0F…")
+  assert.strictEqual(M.truncate("1\uFE0F\u20E3abcd", 5), "1\uFE0F\u20E3ab…")
+  assert.strictEqual(M.truncate("❤\uFE0Fab", 4), "❤\uFE0Fab")
+  // A wide first character that does not fit the budget leaves only the ellipsis.
+  assert.strictEqual(M.truncate("한국", 1), "…")
+})
+
+test("truncate never splits an emoji or accented letter", () => {
+  assert.strictEqual(M.truncate("👍🏽👍🏽👍🏽👍🏽👍🏽", 8), "👍🏽👍🏽👍🏽…")
+  assert.strictEqual(M.truncate("ab👨‍👩‍👧‍👦cd", 5), "ab👨‍👩‍👧‍👦…")
+  assert.strictEqual(M.truncate("🇰🇷🇯🇵🇺🇸", 5), "🇰🇷🇯🇵…")
+  assert.strictEqual(M.truncate("🇰🇷🇯🇵🇺🇸", 6), "🇰🇷🇯🇵🇺🇸")
+  assert.strictEqual(M.truncate("e\u0301e\u0301e\u0301e\u0301e\u0301", 4), "e\u0301e\u0301e\u0301…")
+  assert.strictEqual(M.truncate("Cafe\u0301", 4), "Cafe\u0301")
+  assert.strictEqual(M.truncate("aaaaaがxxxx", 8), "aaaaaが…")
+  assert.strictEqual(M.truncate("aaaaaか\u3099xxxx", 8), "aaaaaか\u3099…")
+  assert.strictEqual(M.truncate("葛\uDB40\uDD00葛\uDB40\uDD00葛", 5), "葛\uDB40\uDD00葛\uDB40\uDD00…")
+})
+
 test("webAppHost parses chromium app classes", () => {
   assert.strictEqual(M.webAppHost("chrome-web.whatsapp.com__-Default"), "web.whatsapp.com")
   assert.strictEqual(M.webAppHost("brave-app.hey.com__-Profile_1"), "app.hey.com")
@@ -221,6 +260,14 @@ test("fallbackLetter prefers the readable tail of a reverse-DNS class", () => {
   assert.strictEqual(M.fallbackLetter("org.kde.dolphin", "org.kde.dolphin"), "D")
   assert.strictEqual(M.fallbackLetter("", "foot"), "F")
   assert.strictEqual(M.fallbackLetter("", ""), "")
+  // A whole emoji or syllable, never half of a surrogate pair.
+  assert.strictEqual(M.fallbackLetter("😀 Smile", "smile"), "😀")
+  assert.strictEqual(M.fallbackLetter("👍🏽 Thumbs", "thumbs"), "👍🏽")
+  assert.strictEqual(M.fallbackLetter("🇰🇷 Korea", "korea"), "🇰🇷")
+  assert.strictEqual(M.fallbackLetter("한글 메모", "memo"), "한")
+  assert.strictEqual(M.fallbackLetter("éclair", "eclair"), "É")
+  assert.strictEqual(M.fallbackLetter("か\u3099", ""), "か\u3099")
+  assert.strictEqual(M.fallbackLetter("が", ""), "が")
 })
 
 test("agentStates picks the nearest window and the most urgent state", () => {
