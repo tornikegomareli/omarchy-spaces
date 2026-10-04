@@ -103,7 +103,7 @@ omarchy plugin remove tornikegomareli.spaces
 omarchy plugin enable omarchy.workspaces   # bring back the built-in switcher
 ```
 
-If you added the agent hooks or the settings key below, delete those lines from `~/.claude/settings.json` and `~/.config/hypr/bindings.lua`. If you linked the OpenCode plugin, remove the link:
+If you added the agent hooks or the settings key below, delete those lines from `~/.claude/settings.json` and `~/.config/hypr/bindings.lua` (including the Super number bindings, if you added them). If you linked the OpenCode plugin, remove the link:
 
 ```sh
 rm ~/.config/opencode/plugins/spaces.js
@@ -144,6 +144,45 @@ Settings can also be set from a script:
 ```sh
 omarchy bar set tornikegomareli.spaces showApps all
 ```
+
+### Show numbers while holding Super
+
+Off by default. When on, the workspace numbers appear while you hold Super, so you can see which workspace an app is on even if labels are set to None or Glyph. They hide again when you release Super or switch workspace.
+
+1. Turn it on under Settings → Appearance → Show numbers while holding Super, or from a script:
+
+   ```sh
+   omarchy bar set tornikegomareli.spaces holdSuperNumbers true
+   ```
+
+2. Spaces cannot see a held key by itself, so add these lines to `~/.config/hypr/bindings.lua`:
+
+   ```lua
+   -- Spaces: show workspace numbers while Super is held
+   hl.unbind("SUPER_L")
+   o.bind("SUPER_L", "Show workspace numbers",
+     hl.dsp.exec_cmd("omarchy-shell tornikegomareli.spaces showNumbers"),
+     { non_consuming = true })
+   hl.unbind("SUPER + SUPER_L")
+   o.bind("SUPER + SUPER_L", "Hide workspace numbers",
+     hl.dsp.exec_cmd("omarchy-shell tornikegomareli.spaces hideNumbers"),
+     { release = true })
+
+   hl.unbind("SUPER_R")
+   o.bind("SUPER_R", "Show workspace numbers",
+     hl.dsp.exec_cmd("omarchy-shell tornikegomareli.spaces showNumbers"),
+     { non_consuming = true })
+   hl.unbind("SUPER + SUPER_R")
+   o.bind("SUPER + SUPER_R", "Hide workspace numbers",
+     hl.dsp.exec_cmd("omarchy-shell tornikegomareli.spaces hideNumbers"),
+     { release = true })
+   ```
+
+3. Reload Hyprland (`hyprctl reload`).
+
+The bindings are non-consuming, so Super + number, Super + Space, a quick Super tap, and every other Super shortcut work as before. With the setting off, the bindings do nothing.
+
+To remove it, turn the setting off, delete those lines from `~/.config/hypr/bindings.lua`, and run `hyprctl reload`.
 
 <br clear="right" />
 

@@ -171,6 +171,12 @@ Item {
             ]
           }
 
+          ToggleSetting {
+            label: "Show numbers while holding Super"
+            description: "Hold Super to peek at numbers. Needs keybindings, see README"
+            key: "holdSuperNumbers"
+          }
+
           ChoiceSetting {
             title: "DENSITY"
             key: "density"
