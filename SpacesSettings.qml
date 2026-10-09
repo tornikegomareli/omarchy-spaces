@@ -203,6 +203,11 @@ Item {
           SliderSetting { title: "ALWAYS SHOW WORKSPACES"; key: "persistentWorkspaces"; minimum: 0; maximum: 10 }
           ToggleSetting { label: "Hide empty workspaces"; key: "hideEmpty" }
           ToggleSetting { label: "Only this monitor's workspaces"; key: "perMonitor" }
+          ToggleSetting {
+            label: "Show numbers while holding Super"
+            description: "Hold Super to peek at numbers. Needs keybindings, see README"
+            key: "holdSuperNumbers"
+          }
 
       }
       Column {

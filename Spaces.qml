@@ -17,6 +17,11 @@ import "Model.js" as Model
 // settings. Settings persist inline on this widget's shell.json entry.
 Panel {
   id: root
+  // True while Super is held (set over IPC by the Super key bindings).
+  property bool superHeld: false
+  // Numbers only show if the user turned the setting on, so the bindings
+  // do nothing for anyone who has not opted in.
+  readonly property bool numbersVisible: superHeld && cfg.holdSuperNumbers
   moduleName: "tornikegomareli.spaces"
   ipcTarget: "tornikegomareli.spaces"
   manageIpc: false
@@ -86,6 +91,7 @@ Panel {
   // Workspace focused before the current one, for "click active = go back".
   property int previousWorkspaceId: -1
   property int lastWorkspaceId: -1
+
   onCurrentWorkspaceIdChanged: {
     if (root.lastWorkspaceId > 0 && root.lastWorkspaceId !== root.currentWorkspaceId)
       root.previousWorkspaceId = root.lastWorkspaceId
@@ -404,14 +410,27 @@ Panel {
         root.setUrgent(event.data, true)
         break
       case "activewindowv2":
+        root.hideHeldNumbers()
         root.setUrgent(event.data, false)
         refreshDebounce.restart()
         break
       case "closewindow":
+        root.hideHeldNumbers()
         root.setUrgent(event.data, false)
         refreshDebounce.restart()
         break
+      case "workspace":
+      case "workspacev2":
+      case "openlayer":
+        // The Super release binding can be missed after another Super
+        // shortcut, so also hide the numbers on the next Hyprland event
+        // (workspace switch, launcher/menu opening, window focus/open/close).
+        root.hideHeldNumbers()
+        break
       case "openwindow":
+        root.hideHeldNumbers()
+        refreshDebounce.restart()
+        break
       case "movewindow":
       case "movewindowv2":
       case "changefloatingmode":
@@ -631,6 +650,22 @@ Panel {
 
   // ------------------------------------------------------------ IPC
 
+  function setNumbersHeld(held) {
+    if (held && !root.cfg.holdSuperNumbers) return
+    root.superHeld = held
+  }
+
+  function hideHeldNumbers() {
+    if (root.superHeld) root.superHeld = false
+  }
+
+  // One IPC handler serves every monitor's bar, so relay to all of them.
+  function relayNumbers(held) {
+    var items = root.bar && typeof root.bar.moduleWidgets === "function" ? root.bar.moduleWidgets(root.moduleName) : [root]
+    if (items.indexOf(root) === -1) items = items.concat([root])
+    for (var i = 0; i < items.length; i++) if (items[i] && typeof items[i].setNumbersHeld === "function") items[i].setNumbersHeld(held)
+  }
+
   IpcHandler {
     target: "tornikegomareli.spaces"
 
@@ -639,6 +674,8 @@ Panel {
     function show(): void { root.open() }
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
+    function showNumbers(): void { root.relayNumbers(true) }
+    function hideNumbers(): void { root.relayNumbers(false) }
     function peek(workspace: string): string { return root.peek(workspace) ? "ok" : "empty" }
     function agent(session: string, state: string, pids: string): void {
       // One IPC handler serves every monitor's bar, so relay to all of them.
@@ -753,7 +790,11 @@ Panel {
         }
         readonly property var itemKeys: iconData.items.map(function(item) { return item.key })
         readonly property color textColor: active ? root.activeText() : root.fg
-        readonly property string label: Model.workspaceLabel(workspaceId, active, root.cfg.labelStyle)
+        readonly property string label: Model.workspaceLabel(
+          workspaceId,
+          active,
+          root.numbersVisible ? "number" : root.cfg.labelStyle
+        )
         readonly property real pad: Style.space(label === "" ? 3 : root.metrics.pad)
 
         // Appear animation lives on the delegate: positioner add transitions
