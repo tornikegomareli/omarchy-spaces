@@ -149,7 +149,7 @@ omarchy bar set tornikegomareli.spaces showApps all
 
 Off by default. When on, the workspace numbers appear while you hold Super, so you can see which workspace an app is on even if labels are set to None or Glyph. They hide again when you release Super or switch workspace.
 
-1. Turn it on under Settings → Appearance → Show numbers while holding Super, or from a script:
+1. Turn it on under Settings → Workspaces → Show numbers while holding Super, or from a script:
 
    ```sh
    omarchy bar set tornikegomareli.spaces holdSuperNumbers true
