@@ -184,7 +184,11 @@ function iconItems(windows, groupApps, maxIcons) {
     var byApp = {}
     for (var i = 0; i < windows.length; i++) {
       var w = windows[i]
-      var k = appKey(w.appId) || w.address
+      var k = appKey(w.appId)
+      // The shell hosts more than one app under its own id, so each of its
+      // windows keeps its own item instead of collapsing into one.
+      if (k === "org.quickshell") k = ""
+      k = k || w.address
       var existing = byApp[k]
       if (!existing) {
         existing = { key: k, address: w.address, appId: w.appId, title: w.title, focused: w.focused, count: 1, addresses: [w.address] }

@@ -475,18 +475,30 @@ Panel {
     return Quickshell.iconPath(value, true)
   }
 
-  // Returns { source, name } for an app id; cached until icons rescan.
-  function appInfo(appId) {
+  // Returns { source, name } for a window; cached until icons rescan. The
+  // title matters for windows the shell itself hosts: they all report
+  // org.quickshell, a NoDisplay entry, while the title names the app inside,
+  // e.g. "Omamail" is omamail.desktop, so the window keeps its own icon.
+  function appInfo(appId, title) {
     root.iconRevision
     var key = Model.appKey(appId)
-    var cached = root.iconCache[key]
+    var label = String(title || "")
+    // The shell hosts more than one app under its own id, so the title, not
+    // the id, tells those windows apart; only they cache under a title key.
+    var shellKey = key === "org.quickshell" && label !== ""
+    var cacheKey = shellKey ? key + "\u0000" + label.toLowerCase() : key
+    var cached = root.iconCache[cacheKey]
     if (cached) return cached
 
     var entry = findDesktopEntry(appId)
+    if (shellKey) {
+      var titled = findDesktopEntry(label)
+      if (titled && !titled.noDisplay) entry = titled
+    }
     var source = iconUrl(entry && entry.icon ? entry.icon : appId)
     if (source === "" && key !== appId) source = iconUrl(key)
     var info = { source: source, name: entry && entry.name ? String(entry.name) : String(appId || "") }
-    root.iconCache[key] = info
+    root.iconCache[cacheKey] = info
     return info
   }
 
@@ -874,7 +886,7 @@ Panel {
 
                   required property var modelData
                   readonly property var item: pill.itemMap[modelData] || null
-                  readonly property var info: item ? root.appInfo(item.appId) : ({ source: "", name: "" })
+                  readonly property var info: item ? root.appInfo(item.appId, item.title) : ({ source: "", name: "" })
                   readonly property bool focusedHere: !!item && item.focused && pill.active
                   readonly property bool highlightFocused: focusedHere && pill.itemKeys.length > 1
                   readonly property string titleText: root.cfg.focusedTitle && focusedHere && !root.vertical
@@ -1352,7 +1364,7 @@ Panel {
 
           // App badge in the corner, so small thumbnails stay identifiable.
           Rectangle {
-            readonly property var info: thumb.win ? root.appInfo(thumb.win.appId) : null
+            readonly property var info: thumb.win ? root.appInfo(thumb.win.appId, thumb.win.title) : null
             visible: info !== null && thumb.width > 28 && thumb.height > 22
             anchors.left: parent.left
             anchors.bottom: parent.bottom

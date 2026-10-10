@@ -53,6 +53,14 @@ test("iconItems groups same app and keeps focused address", () => {
   assert.strictEqual(r.items[0].focused, true)
 })
 
+test("iconItems leaves shell-hosted windows ungrouped", () => {
+  const r = M.iconItems([
+    { address: "1", appId: "org.quickshell", title: "Omamail", focused: false },
+    { address: "2", appId: "org.quickshell", title: "Omarchy", focused: false }
+  ], true, 8)
+  assert.strictEqual(r.items.length, 2)
+})
+
 test("iconItems overflow never hides focused", () => {
   const ws = [1, 2, 3, 4, 5].map(i => ({ address: String(i), appId: "a" + i, title: "", focused: i === 5 }))
   const r = M.iconItems(ws, false, 3)
