@@ -44,9 +44,27 @@ Other agents can report the same way: `omarchy-shell tornikegomareli.spaces agen
 
 ### OpenCode
 
-`hooks/opencode-plugin.js` is an OpenCode plugin that reports for you, so a terminal running OpenCode gets the same badge a Claude Code terminal gets. It reports through the `omarchy-shell` command above, so nothing else is needed.
+`hooks/opencode-tui.js` is the OpenCode reporter. It reports for you, so a terminal running OpenCode gets the same badge a Claude Code terminal gets. It reports through the `omarchy-shell` command above, so nothing else is needed.
 
-To turn it on, link it into OpenCode's plugins folder:
+It has to live in the TUI. OpenCode 2.x runs server plugins in its shared background service, whose processes are not descendants of your terminal, and the bar keeps a badge only while the latest report's pids match a window — a report from the service never matches, and arriving last it would erase the terminal's badge. The TUI plugin runs in the terminal's own client process, so its reports always match.
+
+To turn it on, link it into OpenCode's plugin folder:
+
+```sh
+mkdir -p ~/.config/opencode/plugins/spaces-tui
+ln -sfn ~/.config/omarchy/plugins/tornikegomareli.spaces/hooks/opencode-tui.js \
+        ~/.config/opencode/plugins/spaces-tui/tui.js
+```
+
+and add the directory to `~/.config/opencode/cli.json` (a file path will not do; it must be the directory):
+
+```json
+{
+  "plugins": ["~/.config/opencode/plugins/spaces-tui"]
+}
+```
+
+On OpenCode 1.x, which runs plugins inside the terminal's opencode process and needs OpenCode 1.4 or newer, link the server plugin instead:
 
 ```sh
 mkdir -p ~/.config/opencode/plugins
@@ -54,7 +72,9 @@ ln -sfn ~/.config/omarchy/plugins/tornikegomareli.spaces/hooks/opencode-plugin.j
         ~/.config/opencode/plugins/spaces.js
 ```
 
-The link points into the installed plugin, so `omarchy plugin update tornikegomareli.spaces` updates the reporter too. Restart OpenCode, run a prompt, and the terminal icon spins in the bar while it works and gets a check mark when it stops.
+If you happen to run several OpenCode TUIs at once, each one badges only the sessions it displays — a session's badge always pins to the terminal showing it instead of flickering between windows.
+
+The links point into the installed plugin, so `omarchy plugin update tornikegomareli.spaces` updates the reporter too. Restart your OpenCode frontend (CLI plugins load at startup), run a prompt, and the terminal icon spins in the bar while it works and gets a check mark when it stops.
 
 `working` and `done` are reported as OpenCode works. `waiting` needs a permission prompt, so with `--auto` it rarely appears: OpenCode answers its own permission requests in milliseconds, and the plugin waits 1.5s before showing a `!` so a prompt answered instantly never flashes. To see it, run `opencode` without `--auto` and ask it to do something that needs approval.
 
@@ -132,11 +152,14 @@ omarchy plugin remove tornikegomareli.spaces
 omarchy plugin enable omarchy.workspaces   # bring back the built-in switcher
 ```
 
-If you added the agent hooks or the settings key below, delete those lines from `~/.claude/settings.json` and `~/.config/hypr/bindings.lua` (including the Super number bindings, if you added them). If you linked the OpenCode plugin, remove the link:
+If you added the agent hooks or the settings key below, delete those lines from `~/.claude/settings.json` and `~/.config/hypr/bindings.lua` (including the Super number bindings, if you added them). If you linked the OpenCode TUI plugin, remove the link and the `cli.json` entry; 1.x users also remove the server link:
 
 ```sh
+rm ~/.config/opencode/plugins/spaces-tui/tui.js
 rm ~/.config/opencode/plugins/spaces.js
 ```
+
+and delete `"~/.config/opencode/plugins/spaces-tui"` from the `plugins` list in `~/.config/opencode/cli.json`.
 
 If you added the omp extension line, delete it from `~/.omp/agent/config.yml`, or omp will keep loading a path that no longer exists.
 
