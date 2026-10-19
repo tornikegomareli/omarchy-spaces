@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Pill border: an opt-in setting that outlines a workspace's number and icons
+  so they read as one box. It follows the icons, so by default only the active
+  workspace gets it
+- Chromium tab favicons: a setting, on by default, that shows a plain Chromium
+  window's active tab favicon instead of the generic Chromium icon. It reads
+  Chromium's own history and favicon files from the last-used profile
+  (`scripts/chromium-favicon`)
+- Web apps that share one host, such as several apps on the same SharePoint
+  site, each keep their own icon: an exact match on the launcher's window
+  class now wins before the host-based guesses
+
 ## 1.4.0
 
 - Show workspace numbers while holding Super: an opt-in setting under

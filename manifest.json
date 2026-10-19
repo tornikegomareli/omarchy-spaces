@@ -65,6 +65,12 @@
         "default": true
       },
       {
+        "key": "pillBorder",
+        "type": "bool",
+        "label": "Pill border",
+        "default": false
+      },
+      {
         "key": "labelStyle",
         "type": "enum",
         "label": "Workspace label",
@@ -175,6 +181,12 @@
           "previous"
         ],
         "default": "none"
+      },
+      {
+        "key": "chromiumFavicons",
+        "type": "bool",
+        "label": "Chromium tab favicons",
+        "default": true
       },
       {
         "key": "urgentHighlight",
