@@ -18,6 +18,7 @@ var DEFAULTS = {
   titleLength: 24,
   activeStyle: "subtle",      // "subtle" | "solid" | "accent"
   pillBackground: true,       // quiet fill behind occupied/hovered pills
+  pillBorder: false,          // outline around each pill that shows its icons, grouping number + icons
   labelStyle: "number",       // "number" | "glyph" | "none"
   holdSuperNumbers: false,    // show workspace numbers while Super is held (needs bindings)
   animations: true,
@@ -33,7 +34,8 @@ var DEFAULTS = {
   previews: true,             // live preview of a workspace on hover
   previewSize: "medium",      // "small" | "medium" | "large"
   previewLive: true,          // keep previews streaming; false = one frame
-  agentStatus: true           // badges for coding agents running in terminals
+  agentStatus: true,          // badges for coding agents running in terminals
+  chromiumFavicons: true      // plain Chromium windows show their active tab's favicon (reads Chromium's history/favicon files)
 }
 
 var SHOW_APPS = ["all", "active", "hover", "hoverOnly"]
@@ -78,6 +80,7 @@ function resolveSettings(raw) {
     titleLength: clampInt(s.titleLength, 8, 60, d.titleLength),
     activeStyle: oneOf(s.activeStyle, ACTIVE_STYLES, d.activeStyle),
     pillBackground: bool(s.pillBackground, d.pillBackground),
+    pillBorder: bool(s.pillBorder, d.pillBorder),
     labelStyle: oneOf(s.labelStyle, LABEL_STYLES, d.labelStyle),
     holdSuperNumbers: bool(s.holdSuperNumbers, d.holdSuperNumbers),
     animations: bool(s.animations, d.animations),
@@ -93,7 +96,8 @@ function resolveSettings(raw) {
     previews: bool(s.previews, d.previews),
     previewSize: oneOf(s.previewSize, PREVIEW_SIZES, d.previewSize),
     previewLive: bool(s.previewLive, d.previewLive),
-    agentStatus: bool(s.agentStatus, d.agentStatus)
+    agentStatus: bool(s.agentStatus, d.agentStatus),
+    chromiumFavicons: bool(s.chromiumFavicons, d.chromiumFavicons)
   }
 }
 

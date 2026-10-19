@@ -176,6 +176,16 @@ Settings can also be set from a script:
 omarchy bar set tornikegomareli.spaces showApps all
 ```
 
+### Pill border
+
+Off by default. Turn on Appearance → Pill border to draw an outline around a workspace's number and icons, so they read as one box. It follows the icons: only pills that currently show icons get it, so with the default Show icons on setting (active or hovered) that is the active workspace, and with `all` it is every occupied workspace.
+
+### Chromium tab favicons
+
+On by default. With App icons → Chromium tab favicons on, a plain Chromium window shows its active tab's own favicon instead of the generic Chromium icon. Web apps already use their launcher's icon; this is for ordinary browser windows.
+
+It works by reading Chromium's own `History` and `Favicons` files in the profile Chromium used last (`~/.config/chromium/<profile>`, from `Local State`; set `CHROMIUM_PROFILE` to a profile folder to override). They are copied first because Chromium locks them, only the matching icon is cached under `~/.cache/spaces-favicons`, and nothing leaves your machine. Turn the setting off if you would rather Spaces never read those files. Chromium only: other browsers are not covered. See `scripts/chromium-favicon`.
+
 ### Show numbers while holding Super
 
 Off by default. When on, the workspace numbers appear while you hold Super, so you can see which workspace an app is on even if labels are set to None or Glyph. They hide again when you release Super or switch workspace.
