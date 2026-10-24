@@ -240,6 +240,12 @@
         "default": true
       },
       {
+        "key": "agentIcons",
+        "type": "bool",
+        "label": "Agent icons",
+        "default": true
+      },
+      {
         "key": "activeIcon",
         "type": "string",
         "label": "Active workspace icon (empty = off)",
@@ -308,3 +314,4 @@
     ]
   }
 }
+

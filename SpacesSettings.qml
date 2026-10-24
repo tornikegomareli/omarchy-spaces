@@ -135,6 +135,7 @@ Item {
           ToggleSetting { visible: root.cfg.showIcons; label: "Show focused window title"; description: "Next to its icon"; key: "focusedTitle" }
           SliderSetting { visible: root.cfg.showIcons && root.cfg.focusedTitle; title: "TITLE LENGTH"; key: "titleLength"; minimum: 8; maximum: 60; suffix: " characters" }
           ToggleSetting { visible: root.cfg.showIcons; label: "Agent status"; description: "Badges on terminals running coding agents"; key: "agentStatus" }
+          ToggleSetting { visible: root.cfg.showIcons; label: "Agent icons"; description: "Claude, Codex and Grok logos on terminals running them"; key: "agentIcons" }
 
         ToggleSetting { label: "Highlight urgent windows"; description: "Pulse workspaces asking for attention"; key: "urgentHighlight" }
         ToggleSetting { label: "Tooltips"; description: "Window titles on hover"; key: "tooltips" }
@@ -523,3 +524,4 @@ Item {
     }
   }
 }
+

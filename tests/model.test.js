@@ -388,6 +388,58 @@ test("window titles and workspace labels render as plain text", () => {
   for (const b of titled) assert.match(b, /textFormat:\s*Text\.PlainText/, b.split("\n").find((l) => /text:/.test(l)).trim())
 })
 
+test("agentAppId recognises Claude Code, Codex and Grok terminals", () => {
+  const g = "com.mitchellh.ghostty"
+  assert.strictEqual(M.agentAppId(g, "\u25d1 Omarchy plugin skills"), "agent.claude")
+  assert.strictEqual(M.agentAppId(g, "\u2733 Fix the bar"), "agent.claude")
+  assert.strictEqual(M.agentAppId(g, "Claude Code"), "agent.claude")
+  assert.strictEqual(M.agentAppId(g, "\u2838 Add snapping and dock controls | tcballard"), "agent.codex")
+  assert.strictEqual(M.agentAppId(g, "\u280b scratchpad"), "agent.codex")
+  assert.strictEqual(M.agentAppId(g, "Collect iPad boot logs | tcballard"), g)
+  assert.strictEqual(M.agentAppId(g, "[ . ] Action Required | Build Omarchy shortcut wheel | tcballard"), "agent.codex")
+  assert.strictEqual(M.agentAppId(g, "grok"), "agent.grok")
+  assert.strictEqual(M.agentAppId(g, "~/code"), g)
+  assert.strictEqual(M.agentAppId(g, "grokking notes"), g)
+  assert.strictEqual(M.agentAppId(g, ""), g)
+  assert.strictEqual(M.agentFor("agent.grok").name, "Grok")
+  assert.strictEqual(M.agentFor(g), null)
+})
+
+
+test("agentAppId only recognises agents in known terminals", () => {
+  for (const appId of [
+    "com.mitchellh.ghostty", "Ghostty", "Alacritty", "org.alacritty.Alacritty",
+    "kitty", "net.kovidgoyal.kitty", "foot", "footclient",
+    "org.wezfurlong.wezterm", "WezTerm", "org.gnome.Terminal",
+    "gnome-terminal-server", "org.gnome.Console", "kgx", "org.kde.konsole",
+    "konsole", "XTerm", "UXTerm", "URxvt", "st", "st-256color",
+    "xfce4-terminal", "tilix", "com.gexperts.Tilix"
+  ]) {
+    assert.strictEqual(M.agentAppId(appId, "Claude Code"), "agent.claude", appId)
+    assert.strictEqual(M.agentAppId(appId, "\u280b scratchpad"), "agent.codex", appId)
+    assert.strictEqual(M.agentAppId(appId, "grok"), "agent.grok", appId)
+  }
+  for (const appId of ["zen", "chromium", "firefox", "omarchy-webapp", "my-foot-app", "", null, undefined]) {
+    for (const title of [
+      "WeTransfer | Send Large Files Fast — Zen Browser",
+      "Pricing | Vercel - Chromium",
+      "Claude Code overview - Anthropic - Chromium",
+      "grok - Google Search - Chromium",
+      "Claude Code", "grok", "\u280b scratchpad",
+      "[ . ] Action Required | Build Omarchy shortcut wheel | tcballard"
+    ]) assert.strictEqual(M.agentAppId(appId, title), appId, String(appId) + ": " + title)
+  }
+})
+
+test("agentAppId leaves ambiguous Codex titles as terminal windows", () => {
+  const appId = "com.mitchellh.ghostty"
+  for (const title of [
+    "Collect iPad boot logs | tcballard", "vim | project", "build | x",
+    "Pricing | Vercel - Chromium", "scratchpad", "notes [ . ] Action Required | project",
+    "[ . ] Action Requiredness | project"
+  ]) assert.strictEqual(M.agentAppId(appId, title), appId, title)
+})
+
 test("monitor-local placeholders retain global IDs for actions", () => {
   assert.deepStrictEqual(M.workspaceIds({11: 1, 13: 2}, [11], 5, false, 1), [11, 12, 13, 14, 15])
   assert.deepStrictEqual(M.workspaceIds({11: 1, 13: 2}, [12], 5, true, 1), [11, 12, 13])
@@ -495,3 +547,4 @@ test("workspaceIcon falls back to the label and honours precedence", () => {
 })
 
 if (failed) { console.log(failed + " failed"); process.exit(1) }
+

@@ -52,6 +52,8 @@ Panel {
   readonly property int barSize: bar ? bar.barSize : Style.bar.sizeHorizontal
   readonly property color fg: bar ? bar.barForeground : Color.foreground
   readonly property color bg: bar ? bar.background : Color.background
+  // White agent marks swap to their dark twin on a light bar.
+  readonly property bool lightBar: 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b >= 0.5
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property int pillThickness: Math.max(16, barSize - Style.space(6))
   readonly property int iconPx: Math.min(cfg.iconSize, pillThickness - Style.space(4))
@@ -337,7 +339,7 @@ Panel {
         var ipc = tl.lastIpcObject || {}
         windows.push({
           address: String(tl.address),
-          appId: root.appIdOf(tl),
+          appId: root.cfg.agentIcons ? Model.agentAppId(root.appIdOf(tl), tl.title) : root.appIdOf(tl),
           title: String(tl.title || ""),
           focused: activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
           at: ipc.at && ipc.at.length === 2 ? [ipc.at[0], ipc.at[1]] : null,
@@ -521,6 +523,8 @@ Panel {
   // e.g. "Omamail" is omamail.desktop, so the window keeps its own icon.
   function appInfo(appId, title) {
     root.iconRevision
+    var agent = Model.agentFor(appId)
+    if (agent) return { source: Qt.resolvedUrl("assets/" + agent.icon + (agent.light && root.lightBar ? "-light" : "") + ".svg"), name: agent.name }
     var key = Model.appKey(appId)
     var label = String(title || "")
     // The shell hosts more than one app under its own id, so the title, not
@@ -1523,3 +1527,4 @@ Panel {
     }
   }
 }
+

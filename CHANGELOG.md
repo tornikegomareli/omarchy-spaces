@@ -125,3 +125,4 @@ First release.
 - Settings panel: when icons show, icon style and size, grouping by app,
   active style, labels, density, urgent highlights, tooltips, animations
 - Icons for Chromium web apps and apps missing from the icon theme
+

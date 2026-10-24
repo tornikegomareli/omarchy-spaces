@@ -34,6 +34,7 @@ var DEFAULTS = {
   previewSize: "medium",      // "small" | "medium" | "large"
   previewLive: true,          // keep previews streaming; false = one frame
   agentStatus: true,          // badges for coding agents running in terminals
+  agentIcons: true,
   activeIcon: "",             // replaces the focused pill's label; empty = off
   wsIcon1: "", wsIcon2: "", wsIcon3: "", wsIcon4: "", wsIcon5: "",
   wsIcon6: "", wsIcon7: "", wsIcon8: "", wsIcon9: "", wsIcon10: ""  // per-workspace labels; empty = number
@@ -97,6 +98,7 @@ function resolveSettings(raw) {
     previewSize: oneOf(s.previewSize, PREVIEW_SIZES, d.previewSize),
     previewLive: bool(s.previewLive, d.previewLive),
     agentStatus: bool(s.agentStatus, d.agentStatus),
+    agentIcons: bool(s.agentIcons, d.agentIcons),
     activeIcon: clipIconString(s.activeIcon, d.activeIcon),
     wsIcon1: clipIconString(s.wsIcon1, d.wsIcon1),
     wsIcon2: clipIconString(s.wsIcon2, d.wsIcon2),
@@ -221,6 +223,36 @@ function workspaceIcon(settings, id, focused) {
   var icon = n >= 1 && n <= 10 ? settings["wsIcon" + n] : ""
   if (icon) return clipIconString(icon, "")
   return focused && settings.activeIcon ? clipIconString(settings.activeIcon, "") : ""
+}
+
+var TERMINAL_APP_IDS = [
+  "ghostty", "com.mitchellh.ghostty", "alacritty", "org.alacritty.alacritty",
+  "kitty", "net.kovidgoyal.kitty", "foot", "footclient",
+  "wezterm", "org.wezfurlong.wezterm", "org.gnome.terminal",
+  "gnome-terminal", "gnome-terminal-server", "org.gnome.console", "kgx",
+  "konsole", "org.kde.konsole", "xterm", "uxterm", "urxvt",
+  "st", "st-256color", "xfce4-terminal", "tilix", "com.gexperts.tilix"
+]
+
+var AGENTS = [
+  { id: "agent.claude", name: "Claude Code", icon: "claude", light: false,
+    title: /^[\u2733\u2722\u2736\u273b\u273d\u00b7\u25d0-\u25d3\u23fa] |\bClaude Code\b/ },
+  { id: "agent.codex", name: "Codex", icon: "codex", light: true,
+    title: /^[\u2801-\u28ff] |^\[ *\S+ *\] Action Required\b/ },
+  { id: "agent.grok", name: "Grok", icon: "grok", light: true,
+    title: /^grok(\s|$)/i }
+]
+
+function agentFor(appId) {
+  for (var i = 0; i < AGENTS.length; i++) if (AGENTS[i].id === appId) return AGENTS[i]
+  return null
+}
+
+function agentAppId(appId, title) {
+  if (TERMINAL_APP_IDS.indexOf(appKey(appId)) === -1) return appId
+  var t = String(title || "")
+  for (var i = 0; i < AGENTS.length; i++) if (AGENTS[i].title.test(t)) return AGENTS[i].id
+  return appId
 }
 
 // Stable key identifying "the same app" across windows.
@@ -681,6 +713,7 @@ if (typeof module !== "undefined") {
     agentWindowStates: agentWindowStates, agentPinAddress: agentPinAddress,
     parsePids: parsePids, normalizeAgentState: normalizeAgentState,
     agentProcessIds: agentProcessIds, pruneDeadAgents: pruneDeadAgents,
+    agentAppId: agentAppId, agentFor: agentFor,
     previewWidth: previewWidth, previewDimensions: previewDimensions, monitorArea: monitorArea, previewLayout: previewLayout, durationFor: durationFor,
     workspaceIds: workspaceIds, workspaceLabel: workspaceLabel, workspaceIcon: workspaceIcon, appKey: appKey,
     parseWorkspaceBlocks: parseWorkspaceBlocks, monitorWorkspaceBlock: monitorWorkspaceBlock,
@@ -691,3 +724,4 @@ if (typeof module !== "undefined") {
     fallbackLetter: fallbackLetter
   }
 }
+
