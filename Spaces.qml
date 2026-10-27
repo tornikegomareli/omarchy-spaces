@@ -1592,7 +1592,7 @@ Panel {
           y: rect ? rect.y + inset : 0
           width: rect ? Math.max(2, rect.width - inset * 2) : 0
           height: rect ? Math.max(2, rect.height - inset * 2) : 0
-          z: rect && rect.floating ? 1 : 0
+          z: rect && rect.floating ? (highlighted ? 2 : 1) : 0
 
           Behavior on x { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
           Behavior on y { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
