@@ -402,8 +402,10 @@ Panel {
 
   function focusWindow(address) {
     var target = "address:0x" + String(address).replace(/^0x/, "")
-    run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"" + target + "\" })")
-      + " >/dev/null 2>&1 || hyprctl dispatch focuswindow " + Util.shellQuote(target))
+    run("(hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"" + target + "\" })")
+      + " >/dev/null 2>&1 || hyprctl dispatch focuswindow " + Util.shellQuote(target) + ")"
+      + " && (hyprctl dispatch " + Util.shellQuote("hl.dsp.window.alter_zorder({ window = \"" + target + "\", mode = \"top\" })")
+      + " >/dev/null 2>&1 || hyprctl dispatch alterzorder " + Util.shellQuote("top," + target) + ")")
   }
 
   function closeWindow(address) {

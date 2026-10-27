@@ -102,10 +102,15 @@ Window {
       var sent = sentBy(function() { widget.activateItem(icon) })
       check(sent.indexOf("address:0x" + other) !== -1,
         "Focused icon did not target the previous live window: " + sent)
+      check(sent.indexOf("alter_zorder") !== -1 && sent.indexOf("alterzorder") !== -1
+        && sent.indexOf("top,address:0x" + other) !== -1,
+        "Previous window was not raised using the target address: " + sent)
       icon.focused = false
       sent = sentBy(function() { widget.activateItem(icon) })
       check(sent.indexOf("address:0x" + current) !== -1,
         "Unfocused icon did not target its own window: " + sent)
+      check(sent.indexOf("top,address:0x" + current) !== -1,
+        "Icon's window was not raised using the target address: " + sent)
       console.log("PASS: focused icon returns to previous live window; unfocused icon focuses its own window")
     }
     function workspaceEdges() {
