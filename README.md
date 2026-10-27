@@ -226,7 +226,8 @@ omarchy bar set tornikegomareli.spaces activeIconClick previous
 ```
 
 The default, **Cycles windows** (`activeIconClick cycle`), keeps the existing
-behavior for grouped apps. **Previous window** takes precedence over cycling.
+behavior for grouped apps. Grouped apps with multiple windows cycle through
+their windows in either mode; **Previous window** applies to single-window icons.
 Closed windows are skipped; if there is no previous window, focus stays put.
 Focus history starts when Spaces loads.
 
