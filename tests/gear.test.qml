@@ -88,6 +88,65 @@ Window {
       workspaceEdges()
       appIcons()
       previousWindow()
+      workspacePreviews()
+    }
+    function workspacePreviews() {
+      var activePill = collect(widget, function(item) {
+        return item.workspaceId === widget.currentWorkspaceId && item.showApps !== undefined
+      }, [])[0]
+      check(activePill && activePill.occupied, "Need an occupied current workspace for the preview check")
+      var icon = collect(activePill, function(item) { return item.agentState !== undefined && !!item.item }, [])[0]
+      check(icon, "Need a current-workspace app icon for the preview check")
+      var outside = Qt.point(widget.width - 1, widget.height + 20)
+      mouseMove(widget, outside.x, outside.y)
+      widget.applySetting({previews: true, previewActive: false})
+      widget.hidePreview()
+      var p = icon.mapToItem(widget, icon.width / 2, icon.height / 2)
+      mouseMove(widget, p.x, p.y)
+      wait(450)
+      check(!widget.previewOpen, "Current workspace preview should be opt-in")
+
+      mouseMove(widget, outside.x, outside.y)
+      widget.applySetting({previewActive: true})
+      fakeBar.commands = []
+      mouseMove(widget, p.x, p.y)
+      wait(450)
+      check(icon.hovered && widget.previewOpen && widget.previewWorkspaceId === widget.currentWorkspaceId,
+        "Hovering a current-workspace app icon did not open its preview")
+      check(JSON.stringify(widget.highlightAddresses) === JSON.stringify(icon.item.addresses),
+        "Current-workspace preview lost the app's grouped-window highlights")
+      check(fakeBar.commands.length === 0, "Preview hover must not focus or raise actual windows")
+      widget.applySetting({previewActive: false})
+      check(!widget.previewOpen, "Disabling current workspace previews did not close the preview")
+
+      // A setting changed during the hover delay must prevent the pending popup.
+      mouseMove(widget, outside.x, outside.y)
+      widget.applySetting({previewActive: true})
+      mouseMove(widget, p.x, p.y)
+      widget.applySetting({previewActive: false})
+      wait(450)
+      check(!widget.previewOpen, "Pending current workspace preview ignored the disabled option")
+
+      check(widget.peek(widget.currentWorkspaceId) && widget.previewOpen,
+        "Explicit peek of the current workspace should still work without opting into hover previews")
+      widget.hidePreview()
+      var otherPill = collect(widget, function(item) {
+        return item.workspaceId !== widget.currentWorkspaceId && item.showApps !== undefined && item.occupied
+      }, [])[0]
+      if (otherPill) {
+        widget.pillHovered(otherPill, true)
+        wait(450)
+        check(widget.previewOpen && widget.previewWorkspaceId === otherPill.workspaceId,
+          "Other workspace previews stopped working with the option disabled")
+      }
+      widget.applySetting({previews: false, previewActive: true})
+      widget.pillHovered(activePill, true)
+      wait(450)
+      check(!widget.previewOpen, "Master preview switch must also disable current workspace previews")
+      check(!widget.hoverPreviewAllowed({workspaceId: widget.currentWorkspaceId, occupied: false}),
+        "Empty workspaces should not show previews")
+      widget.hidePreview()
+      console.log("PASS: opt-in current workspace icon previews, grouped highlights, live setting changes, and master switch")
     }
     function previousWindow() {
       var current = String(widget.activeWindowAddress()).replace(/^0x/, "").toLowerCase()

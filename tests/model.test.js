@@ -431,6 +431,9 @@ test("preview settings validate", () => {
   assert.strictEqual(s.previewSize, "medium")
   assert.strictEqual(s.previews, false)
   assert.strictEqual(s.previewLive, true)
+  assert.strictEqual(s.previewActive, false)
+  assert.strictEqual(M.resolveSettings({ previewActive: true }).previewActive, true)
+  assert.strictEqual(M.resolveSettings({ previewActive: "true" }).previewActive, false)
   assert.strictEqual(M.previewWidth("large"), 520)
 })
 

@@ -38,6 +38,7 @@ var DEFAULTS = {
   activeIconClick: "cycle",   // clicking a focused app: "cycle" | "previous"
   settingsButton: "never",    // gear button: "hover" | "always" | "never"
   previews: true,             // live preview of a workspace on hover
+  previewActive: false,       // also preview the current workspace on hover
   previewSize: "medium",      // "small" | "medium" | "large"
   previewLive: true,          // keep previews streaming; false = one frame
   agentStatus: true,          // badges for coding agents running in terminals
@@ -113,6 +114,7 @@ function resolveSettings(raw) {
     activeIconClick: oneOf(s.activeIconClick, ACTIVE_ICON_CLICKS, d.activeIconClick),
     settingsButton: oneOf(s.settingsButton, SETTINGS_BUTTONS, d.settingsButton),
     previews: bool(s.previews, d.previews),
+    previewActive: bool(s.previewActive, d.previewActive),
     previewSize: oneOf(s.previewSize, PREVIEW_SIZES, d.previewSize),
     previewLive: bool(s.previewLive, d.previewLive),
     agentStatus: bool(s.agentStatus, d.agentStatus),

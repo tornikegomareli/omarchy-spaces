@@ -278,6 +278,12 @@
         "default": true
       },
       {
+        "key": "previewActive",
+        "type": "bool",
+        "label": "Preview current workspace",
+        "default": false
+      },
+      {
         "key": "previewSize",
         "type": "enum",
         "label": "Preview size",

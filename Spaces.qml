@@ -135,7 +135,7 @@ Panel {
     if (root.lastWorkspaceId > 0 && root.lastWorkspaceId !== root.currentWorkspaceId)
       root.previousWorkspaceId = root.lastWorkspaceId
     root.lastWorkspaceId = root.currentWorkspaceId
-    if (root.currentWorkspaceId === root.previewWorkspaceId) root.hidePreview()
+    if (root.currentWorkspaceId === root.previewWorkspaceId && !root.cfg.previewActive) root.hidePreview()
   }
 
   // Addresses (normalized) of windows that requested attention and have not
@@ -756,7 +756,7 @@ Panel {
 
   // ------------------------------------------------------------ previews
 
-  // Hovering a pill of another workspace shows a live miniature of it. One
+  // Hovering a workspace pill shows a live miniature of it. One
   // card serves every pill and slides between them.
   property int previewWorkspaceId: -1
   property Item previewPill: null
@@ -768,9 +768,20 @@ Panel {
     && root.cfg.previews && !!root.workspaceMap[previewWorkspaceId]
     && root.workspaceMap[previewWorkspaceId].windows.length > 0
 
+  function hoverPreviewAllowed(pill) {
+    return root.cfg.previews && !!pill && pill.occupied
+      && (root.cfg.previewActive || pill.workspaceId !== root.currentWorkspaceId)
+  }
+
+  onCfgChanged: {
+    if (root.previewWanted && (!root.cfg.previews
+        || (!root.cfg.previewActive && root.previewWorkspaceId === root.currentWorkspaceId)))
+      root.hidePreview()
+  }
+
   function pillHovered(pill, hovered) {
     if (!root.cfg.previews) return
-    if (hovered && pill.workspaceId !== root.currentWorkspaceId && pill.occupied) {
+    if (hovered && root.hoverPreviewAllowed(pill)) {
       previewHideTimer.stop()
       root.previewPill = pill
       // Hyprland sends no event when a floating window moves or resizes,
@@ -812,7 +823,7 @@ Panel {
     id: previewShowTimer
     interval: 380
     onTriggered: {
-      if (!root.previewPill) return
+      if (!root.hoverPreviewAllowed(root.previewPill)) return
       root.previewWorkspaceId = root.previewPill.workspaceId
       root.placePreviewAnchor(false)
       root.previewWanted = true
