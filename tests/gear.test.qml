@@ -175,6 +175,8 @@ Window {
       var p = icon.mapToItem(widget, icon.width / 2, icon.height / 2)
       mouseMove(widget, p.x, p.y)
       check(icon.hovered && pillOf(icon).hovered, "Icon hover did not register")
+      check(JSON.stringify(widget.highlightAddresses) === JSON.stringify(icon.item.addresses),
+        "Icon hover did not highlight all its window addresses")
       // Clicking the active pill sends nothing by default, which would hide a stray pill click
       // there. Going back to a previous workspace makes every pill click send a command.
       var activeClick = widget.cfg.activeClick, previous = widget.previousWorkspaceId
