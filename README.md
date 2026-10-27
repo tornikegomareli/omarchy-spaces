@@ -18,7 +18,7 @@ including grouped-window highlights. This is off by default and requires
 **Workspace previews** to be enabled.
 
 ```sh
-omarchy bar set tornikegomareli.spaces previewActive true
+omarchy bar set tornikegomareli.spaces previewActive true --json
 ```
 
 Previews follow the monitor's orientation, including portrait displays, and shrink to fit the available screen space while keeping the full workspace visible. The size setting controls the longest side, so portrait and landscape previews have a comparable size.
