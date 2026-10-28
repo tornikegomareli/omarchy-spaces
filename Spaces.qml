@@ -763,6 +763,17 @@ Panel {
   property bool previewWanted: false
   property string highlightAddress: ""
   property var highlightAddresses: []
+  property int highlightWorkspaceId: -1
+
+  function clearPreviewHighlight() {
+    root.highlightAddress = ""
+    root.highlightAddresses = []
+    root.highlightWorkspaceId = -1
+  }
+
+  onPreviewWorkspaceIdChanged: {
+    if (root.highlightWorkspaceId !== root.previewWorkspaceId) root.clearPreviewHighlight()
+  }
 
   readonly property bool previewOpen: previewWanted && previewWorkspaceId > 0 && !root.opened
     && root.cfg.previews && !!root.workspaceMap[previewWorkspaceId]
@@ -804,8 +815,7 @@ Panel {
     previewShowTimer.stop()
     previewHideTimer.stop()
     root.previewWanted = false
-    root.highlightAddress = ""
-    root.highlightAddresses = []
+    root.clearPreviewHighlight()
   }
 
   function placePreviewAnchor(animate) {
@@ -833,7 +843,9 @@ Panel {
   Timer {
     id: previewHideTimer
     interval: 200
-    onTriggered: if (!preview.containsMouse) root.hidePreview()
+    onTriggered: {
+      if (!preview.containsMouse && !(root.previewPill && root.previewPill.hovered)) root.hidePreview()
+    }
   }
 
   // Opens the preview for a workspace without hovering, e.g. from a
@@ -1382,15 +1394,19 @@ Panel {
                     }
                     onWheel: function(wheel) { root.scrollBy(wheel.angleDelta.y || wheel.angleDelta.x) }
                     onContainsMouseChanged: {
-                      root.highlightAddress = containsMouse && appIcon.item ? appIcon.item.address : ""
-                      root.highlightAddresses = containsMouse && appIcon.item ? (appIcon.item.addresses || [appIcon.item.address]) : []
                       if (containsMouse && appIcon.item) {
+                        root.highlightWorkspaceId = pill.workspaceId
+                        root.highlightAddress = appIcon.item.address
+                        root.highlightAddresses = appIcon.item.addresses || [appIcon.item.address]
                         var tip = appIcon.item.title || appIcon.info.name
                         if (appIcon.item.count > 1) tip = appIcon.info.name + " (" + appIcon.item.count + " windows)"
                         var agentText = { working: "Agent working", waiting: "Agent needs your input", done: "Agent finished" }[appIcon.agentState]
                         if (agentText) tip = agentText + " \u00b7 " + tip
                         if (!root.previewOpen) root.showTip(appIcon, tip)
                       } else {
+                        // Keep the thumbnail raised while crossing into the
+                        // preview, including the gap between it and the bar.
+                        if (!root.previewOpen) root.clearPreviewHighlight()
                         root.hideTip(appIcon)
                       }
                     }
@@ -1606,7 +1622,8 @@ Panel {
           y: rect ? rect.y + inset : 0
           width: rect ? Math.max(2, rect.width - inset * 2) : 0
           height: rect ? Math.max(2, rect.height - inset * 2) : 0
-          z: rect && rect.floating ? (highlighted ? 2 : 1) : 0
+          // One member of a highlighted group must remain the top hit target.
+          z: rect && rect.floating ? (root.highlightAddress === modelData ? 3 : highlighted ? 2 : 1) : 0
 
           Behavior on x { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
           Behavior on y { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
@@ -1668,8 +1685,13 @@ Panel {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onContainsMouseChanged: {
-              if (containsMouse) root.highlightAddress = thumb.modelData
-              else if (root.highlightAddress === thumb.modelData) root.highlightAddress = ""
+              if (containsMouse) {
+                root.highlightWorkspaceId = root.previewWorkspaceId
+                if (root.highlightAddresses.indexOf(thumb.modelData) === -1) root.highlightAddresses = []
+                // Retain the last target on exit so overlapping thumbnails
+                // cannot swap back under the pointer as their z-order changes.
+                root.highlightAddress = thumb.modelData
+              }
             }
             onClicked: {
               root.focusWindow(thumb.modelData)
