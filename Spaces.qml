@@ -526,8 +526,7 @@ Panel {
         root.setUrgent(event.data, true)
         break
       case "activewindowv2":
-        // A complete focus + scratchpad restore can arrive in one IPC read;
-        // retain the regular window even if activeToplevel already shows the overlay.
+        // Use the event's window even if activeToplevel has already changed.
         root.rememberFocusedWindow(event.data)
         root.hideHeldNumbers()
         root.setUrgent(event.data, false)

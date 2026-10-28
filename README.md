@@ -224,7 +224,7 @@ The destination workspace's temporary focus while switching is ignored, so
 the next click returns to the window you came from.
 Scratchpads and other special workspaces are excluded from this history.
 If a scratchpad is open, selecting a window changes the workspace underneath
-while keeping the scratchpad visible and focused.
+while keeping the scratchpad visible, focused, and stationary.
 
 ```sh
 omarchy bar set tornikegomareli.spaces activeIconClick previous
