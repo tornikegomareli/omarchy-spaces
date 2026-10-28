@@ -220,6 +220,8 @@ Under **Behaviour → Clicking the focused app icon**, choose **Previous window*
 to switch back when clicking the icon of the window you are already using.
 For example, focus a browser from your terminal, then click the browser icon
 again to return to that terminal. This works across workspaces too.
+The destination workspace's temporary focus while switching is ignored, so
+the next click returns to the window you came from.
 
 ```sh
 omarchy bar set tornikegomareli.spaces activeIconClick previous
