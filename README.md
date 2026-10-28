@@ -222,6 +222,9 @@ For example, focus a browser from your terminal, then click the browser icon
 again to return to that terminal. This works across workspaces too.
 The destination workspace's temporary focus while switching is ignored, so
 the next click returns to the window you came from.
+Scratchpads and other special workspaces are excluded from this history.
+If a scratchpad is open, selecting a window changes the workspace underneath
+while keeping the scratchpad visible and focused.
 
 ```sh
 omarchy bar set tornikegomareli.spaces activeIconClick previous

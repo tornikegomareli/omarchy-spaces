@@ -122,14 +122,37 @@ Panel {
   property string pendingWindowFocus: ""
 
   function liveWindowAddresses() {
-    return Hyprland.toplevels.values.map(function(toplevel) {
+    // Spaces represents regular workspaces. An overlay must not become the
+    // return target when switching the workspace underneath it.
+    return Hyprland.toplevels.values.filter(function(toplevel) {
+      return toplevel.workspace && toplevel.workspace.id > 0
+    }).map(function(toplevel) {
       return Model.normalizeAddress(toplevel.address)
     })
   }
 
+  function backgroundWindowAddress() {
+    var active = Hyprland.activeToplevel
+    if (!active) return ""
+    if (active.workspace && active.workspace.id > 0) return Model.normalizeAddress(active.address)
+    var monitor = Hyprland.focusedMonitor
+    var workspace = monitor ? monitor.activeWorkspace : Hyprland.focusedWorkspace
+    if (!workspace || workspace.id <= 0) return ""
+    var addresses = workspace.toplevels.values.map(function(toplevel) {
+      return Model.normalizeAddress(toplevel.address)
+    })
+    for (var i = 0; i < root.windowFocusHistory.length; i++) {
+      var address = root.windowFocusHistory[i]
+      if (addresses.indexOf(address) !== -1) return address
+    }
+    var last = Model.normalizeAddress((workspace.lastIpcObject || {}).lastwindow)
+    return addresses.indexOf(last) !== -1 ? last : ""
+  }
+
   function rememberFocusedWindow(address) {
-    var current = Model.normalizeAddress(address === undefined ? root.activeWindowAddress() : address)
+    var current = Model.normalizeAddress(address === undefined ? root.backgroundWindowAddress() : address)
     var open = root.liveWindowAddresses()
+    if (!current || open.indexOf(current) === -1) return
     if (root.pendingWindowFocus) {
       // Entering a workspace can focus its last window before the requested
       // one. Keep the origin as "previous" until the requested focus arrives.
@@ -369,6 +392,7 @@ Panel {
     root.revision
     var values = Hyprland.workspaces.values
     var activeToplevel = Hyprland.activeToplevel
+    var activeAddress = root.backgroundWindowAddress()
     var perMonitor = cfg.perMonitor && root.monitor !== null
     var map = ({})
 
@@ -386,7 +410,8 @@ Panel {
           address: String(tl.address),
           appId: root.cfg.agentIcons ? Model.agentAppId(root.appIdOf(tl), tl.title) : root.appIdOf(tl),
           title: String(tl.title || ""),
-          focused: activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
+          focused: activeAddress ? Model.normalizeAddress(tl.address) === activeAddress
+            : activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
           at: ipc.at && ipc.at.length === 2 ? [ipc.at[0], ipc.at[1]] : null,
           size: ipc.size && ipc.size.length === 2 ? [ipc.size[0], ipc.size[1]] : null,
           floating: ipc.floating === true,
@@ -424,7 +449,7 @@ Panel {
   function focusWindow(address) {
     root.rememberFocusedWindow()
     var key = Model.normalizeAddress(address)
-    root.pendingWindowFocus = key === Model.normalizeAddress(root.activeWindowAddress()) ? "" : key
+    root.pendingWindowFocus = key === root.backgroundWindowAddress() ? "" : key
     if (root.pendingWindowFocus) windowFocusTimeout.restart()
     else {
       windowFocusTimeout.stop()
@@ -493,10 +518,17 @@ Panel {
     target: Hyprland
     function onRawEvent(event) {
       switch (event.name) {
+      case "custom":
+        var prefix = root.moduleName + ":background:"
+        if (event.data.indexOf(prefix) === 0) root.rememberFocusedWindow(event.data.slice(prefix.length))
+        break
       case "urgent":
         root.setUrgent(event.data, true)
         break
       case "activewindowv2":
+        // A complete focus + scratchpad restore can arrive in one IPC read;
+        // retain the regular window even if activeToplevel already shows the overlay.
+        root.rememberFocusedWindow(event.data)
         root.hideHeldNumbers()
         root.setUrgent(event.data, false)
         refreshDebounce.restart()
