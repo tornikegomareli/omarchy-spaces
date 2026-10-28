@@ -764,11 +764,13 @@ Panel {
   property string highlightAddress: ""
   property var highlightAddresses: []
   property int highlightWorkspaceId: -1
+  property bool previewHandoffPending: false
 
   function clearPreviewHighlight() {
     root.highlightAddress = ""
     root.highlightAddresses = []
     root.highlightWorkspaceId = -1
+    root.previewHandoffPending = false
   }
 
   onPreviewWorkspaceIdChanged: {
@@ -1398,6 +1400,7 @@ Panel {
                         root.highlightWorkspaceId = pill.workspaceId
                         root.highlightAddress = appIcon.item.address
                         root.highlightAddresses = appIcon.item.addresses || [appIcon.item.address]
+                        root.previewHandoffPending = true
                         var tip = appIcon.item.title || appIcon.info.name
                         if (appIcon.item.count > 1) tip = appIcon.info.name + " (" + appIcon.item.count + " windows)"
                         var agentText = { working: "Agent working", waiting: "Agent needs your input", done: "Agent finished" }[appIcon.agentState]
@@ -1622,8 +1625,10 @@ Panel {
           y: rect ? rect.y + inset : 0
           width: rect ? Math.max(2, rect.width - inset * 2) : 0
           height: rect ? Math.max(2, rect.height - inset * 2) : 0
-          // One member of a highlighted group must remain the top hit target.
-          z: rect && rect.floating ? (root.highlightAddress === modelData ? 3 : highlighted ? 2 : 1) : 0
+          // Keep the selected app above other thumbnails crossed on the way
+          // in, with one member of a group as the top hit target.
+          z: rect && rect.floating ? (root.highlightAddress === modelData ? 4
+            : root.highlightAddresses.indexOf(modelData) !== -1 ? 3 : thumbMouse.containsMouse ? 2 : 1) : 0
 
           Behavior on x { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
           Behavior on y { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
@@ -1685,7 +1690,11 @@ Panel {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onContainsMouseChanged: {
-              if (containsMouse) {
+              if (containsMouse && (!root.previewHandoffPending
+                  || root.highlightAddresses.indexOf(thumb.modelData) !== -1)) {
+                // An unrelated thumbnail's exposed edge may sit between the
+                // bar and the selected app. Finish the handoff at that app.
+                root.previewHandoffPending = false
                 root.highlightWorkspaceId = root.previewWorkspaceId
                 if (root.highlightAddresses.indexOf(thumb.modelData) === -1) root.highlightAddresses = []
                 // Retain the last target on exit so overlapping thumbnails

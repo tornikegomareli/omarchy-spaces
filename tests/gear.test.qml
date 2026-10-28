@@ -104,14 +104,20 @@ FloatingWindow {
             return window.address === item.item.address && window.floating
           })
       }, [])
-      var single = icons.filter(function(icon) { return icon.item.count === 1 })[0]
+      var single = icons.filter(function(icon) {
+        return icon.item.count === 1
+          && pillOf(icon).workspace.windows.filter(function(window) { return window.floating }).length > 2
+      })[0]
       var grouped = icons.filter(function(icon) {
-        return pillOf(icon).workspace.windows.filter(function(window) {
+        var windows = pillOf(icon).workspace.windows
+        return windows.filter(function(window) {
           return window.floating && icon.item.addresses.indexOf(window.address) !== -1
-        }).length > 1
+        }).length > 1 && windows.some(function(window) {
+          return window.floating && icon.item.addresses.indexOf(window.address) === -1
+        })
       })[0]
       if (!single && !grouped) {
-        console.log("SKIP: need floating windows for the preview handoff check")
+        console.log("SKIP: need three floating windows, including another app, for the preview handoff check")
         return
       }
       for (var icon of [single, grouped].filter(function(item) { return !!item })) {
@@ -151,15 +157,30 @@ FloatingWindow {
         })
         var sibling = siblings[siblings.length - 1]
         check(sibling, "Need another floating thumbnail for the overlap check")
+        var crossed = thumbs.filter(function(thumb) {
+          return thumb !== primary && thumb !== sibling && thumb.rect.floating
+            && icon.item.addresses.indexOf(thumb.modelData) === -1
+        })[0]
+        check(crossed, "Need an unrelated floating thumbnail for the path into the preview")
         var rear = sibling
         // Make the overlap deterministic while keeping the real delegates and hit targets.
-        for (var thumb of thumbs) thumb.visible = thumb === primary || thumb === sibling
+        for (var thumb of thumbs) thumb.visible = thumb === primary || thumb === sibling || thumb === crossed
         primary.x = 10; primary.y = 10; primary.width = 100; primary.height = 80
         sibling.x = 60; sibling.y = 10; sibling.width = 100; sibling.height = 80
+        crossed.x = 10; crossed.y = 60; crossed.width = 150; crossed.height = 80
         check(primary.z > sibling.z, "Selected window is not above the overlapping thumbnail")
-        mouseMove(primary, 75, 40)
+        // Moving upward crosses the exposed bottom of another app first.
+        // Keep the icon's selection above that app until the pointer reaches it.
+        for (var y = 135; y >= 50; y -= 5) {
+          mouseMove(primary.parent, 85, y)
+          wait(5)
+          check(widget.highlightAddress === selected && JSON.stringify(widget.highlightAddresses) === group
+            && primary.z > crossed.z && (icon.item.count === 1 || sibling.z > crossed.z),
+            "Crossing another app on the way into the preview sent the selected window behind it at y=" + y)
+        }
         wait(250)
-        check(card.containsMouse && widget.previewOpen && widget.highlightAddress === selected,
+        check(card.containsMouse && widget.previewOpen && widget.highlightAddress === selected
+          && !widget.previewHandoffPending,
           "Selected thumbnail did not stay reachable after entering the preview")
         check(fakeBar.commands.length === 0, "Hovering the preview changed actual window focus or stacking")
         if (icon.item.count > 1) {
@@ -185,7 +206,7 @@ FloatingWindow {
           "Preview click did not select the window that stayed in front")
         check(!widget.previewOpen && widget.highlightAddress === "" && widget.highlightAddresses.length === 0,
           "Closing the preview did not clear the retained selection")
-        console.log("PASS: icon-to-preview handoff, stable overlap hit target, and click for "
+        console.log("PASS: icon-to-preview path across another app, stable overlap hit target, and click for "
           + (icon.item.count > 1 ? "grouped floating windows" : "a single floating window"))
       }
       if (!grouped) console.log("SKIP: need multiple floating windows of one app for grouped handoff")
