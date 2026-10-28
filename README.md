@@ -46,7 +46,7 @@ Other agents can report the same way: `omarchy-shell tornikegomareli.spaces agen
 
 `hooks/opencode-plugin.js` is an OpenCode plugin that reports for you, so a terminal running OpenCode gets the same badge a Claude Code terminal gets. It reports through the `omarchy-shell` command above, so nothing else is needed.
 
-To turn it on, link it into OpenCode's plugins folder:
+To turn it on, link it into OpenCode's plugins folder (OpenCode 1.4 or newer):
 
 ```sh
 mkdir -p ~/.config/opencode/plugins
@@ -55,6 +55,20 @@ ln -sfn ~/.config/omarchy/plugins/tornikegomareli.spaces/hooks/opencode-plugin.j
 ```
 
 The link points into the installed plugin, so `omarchy plugin update tornikegomareli.spaces` updates the reporter too. Restart OpenCode, run a prompt, and the terminal icon spins in the bar while it works and gets a check mark when it stops.
+
+On OpenCode 2.x, server plugins run in a background service outside your terminal, so the badge comes from a TUI plugin instead. Link it as well, and add its directory to `~/.config/opencode/cli.json`:
+
+```sh
+mkdir -p ~/.config/opencode/plugins/spaces-tui
+ln -sfn ~/.config/omarchy/plugins/tornikegomareli.spaces/hooks/opencode-tui.js \
+        ~/.config/opencode/plugins/spaces-tui/tui.js
+```
+
+```json
+{
+  "plugins": ["~/.config/opencode/plugins/spaces-tui"]
+}
+```
 
 `working` and `done` are reported as OpenCode works. `waiting` needs a permission prompt, so with `--auto` it rarely appears: OpenCode answers its own permission requests in milliseconds, and the plugin waits 1.5s before showing a `!` so a prompt answered instantly never flashes. To see it, run `opencode` without `--auto` and ask it to do something that needs approval.
 
@@ -137,6 +151,8 @@ If you added the agent hooks or the settings key below, delete those lines from 
 ```sh
 rm ~/.config/opencode/plugins/spaces.js
 ```
+
+On 2.x, also remove `~/.config/opencode/plugins/spaces-tui` and its entry in `~/.config/opencode/cli.json`.
 
 If you added the omp extension line, delete it from `~/.omp/agent/config.yml`, or omp will keep loading a path that no longer exists.
 
