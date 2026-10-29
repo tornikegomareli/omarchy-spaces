@@ -326,6 +326,50 @@ function appKey(appId) {
   return String(appId || "").toLowerCase()
 }
 
+// Minimized windows live on a special workspace. Keep their original regular
+// workspace and geometry, while refreshing their title, app id and toplevel.
+// Omarchy's origin tag also lets us recover windows minimized before startup.
+// Rebuilding from live windows drops closed windows and other special desktops.
+function windowPlacements(windows, previous) {
+  var out = {}
+  previous = previous || {}
+  for (var i = 0; i < windows.length; i++) {
+    var window = windows[i]
+    var key = normalizeAddress(window.address)
+    if (!key) continue
+    var saved = previous[key]
+    var minimized = window.workspaceName === "special:minimized"
+    var workspaceId = window.workspaceId
+    if (minimized) {
+      workspaceId = 0
+      var tags = window.tags || []
+      for (var t = 0; t < tags.length; t++) {
+        var match = /^omarchy-minimized-from-([1-9][0-9]*)$/.exec(tags[t])
+        if (match) { workspaceId = Number(match[1]); break }
+      }
+      if (!workspaceId && saved) workspaceId = saved.workspaceId
+    }
+    if (!(workspaceId > 0)) continue
+    var placed = {}
+    for (var field in window) placed[field] = window[field]
+    placed.workspaceId = workspaceId
+    placed.minimized = minimized
+    // The workspace can change before Quickshell refreshes the IPC geometry.
+    // Once IPC catches up, its retained floating geometry includes any move
+    // immediately before minimizing; the previous visible snapshot may not.
+    if (minimized && saved && saved.workspaceId === workspaceId) {
+      placed.floating = saved.floating
+      placed.monitor = saved.monitor
+      if (window.ipcWorkspaceName !== "special:minimized") {
+        placed.at = saved.at
+        placed.size = saved.size
+      }
+    }
+    out[key] = placed
+  }
+  return out
+}
+
 // Orders windows the way they sit on screen: left to right, then top to
 // bottom. Windows without a known position keep their relative order.
 function sortWindows(windows) {
@@ -537,11 +581,18 @@ function iconClickTarget(item, mode, history, openAddresses) {
 // the pointer back where Hyprland's focus warp found it. keepScratchpad, while
 // a scratchpad has focus, switches the workspace under it instead: focusing
 // the window would close the scratchpad. Focus stays on the scratchpad, and
-// `event` tells the bar which window was picked.
+// `event` tells the bar which window was picked. restoreWorkspace moves a
+// minimized window off special:minimized before either branch.
 function focusWindowLua(target, opts) {
   var o = opts || {}
-  var lua = ["local w = assert(hl.get_window(" + JSON.stringify(target) + "))"]
+  var quoted = JSON.stringify(target)
+  var lua = ["local w = assert(hl.get_window(" + quoted + "))"]
   if (o.keepPointer) lua.push("local p = hl.get_cursor_pos()")
+  if (o.restoreWorkspace) {
+    lua.push(
+      "hl.dispatch(hl.dsp.window.move({ workspace = " + JSON.stringify(String(o.restoreWorkspace)) + ", follow = false, window = w }))",
+      "w = assert(hl.get_window(" + quoted + "))")
+  }
   if (o.keepScratchpad) {
     lua.push(
       "local m = w.monitor",
@@ -890,6 +941,7 @@ if (typeof module !== "undefined") {
     workspaceIds: workspaceIds, workspaceLabel: workspaceLabel, workspaceIcon: workspaceIcon, appKey: appKey,
     parseWorkspaceBlocks: parseWorkspaceBlocks, monitorWorkspaceBlock: monitorWorkspaceBlock,
     workspaceBlockOf: workspaceBlockOf, workspaceSlotOf: workspaceSlotOf,
+    windowPlacements: windowPlacements,
     sortWindows: sortWindows, iconItems: iconItems, truncate: truncate,
     focusedLabel: focusedLabel, webAppHost: webAppHost, webAppKey: webAppKey, chromiumAppKey: chromiumAppKey,
     execUrl: execUrl, webAppEntryIndex: webAppEntryIndex, appIdCandidates: appIdCandidates, iconPathScore: iconPathScore,

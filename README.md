@@ -18,6 +18,10 @@ Hover another workspace to see it live, laid out the way it is on screen. Click 
 omarchy bar set tornikegomareli.spaces previewActive true --json
 ```
 
+Minimized floating windows keep their icons on their original workspace and
+remain in the preview at their previous position and size. Click their icon or
+preview to restore them on that workspace.
+
 Previews follow the monitor's orientation, including portrait displays, and shrink to fit the available screen space while keeping the full workspace visible. The size setting controls the longest side, so portrait and landscape previews have a comparable size.
 
 <p align="center">
@@ -304,6 +308,8 @@ node tests/cursor-reporter.test.js
 bash tests/settings.sh
 # Optional: opens a temporary Wayland window to test the settings gear and full-bar workspace targets
 bash tests/gear.sh
+# Optional: on a floating workspace, checks minimizing and restoring a disposable window
+bash tests/minimized.sh
 ```
 
 After code changes, run `omarchy restart shell`.
