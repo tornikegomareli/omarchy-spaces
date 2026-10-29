@@ -88,6 +88,7 @@ FloatingWindow {
       console.log("PASS: stable gear position, click opens settings, hidden mode")
       workspaceEdges()
       appIcons()
+      iconDismissesPreview()
       previousWindow()
       crossWorkspaceFocusHistory()
       specialWorkspaceHistory()
@@ -294,6 +295,31 @@ FloatingWindow {
         "Empty workspaces should not show previews")
       widget.hidePreview()
       console.log("PASS: opt-in current workspace icon previews, grouped highlights, live setting changes, and master switch")
+    }
+    function iconDismissesPreview() {
+      var icon = collect(widget, function(item) { return item.agentState !== undefined && !!item.item }, [])[0]
+      check(icon, "Need an app icon for the preview dismissal check")
+      var pill = pillOf(icon)
+      var previews = widget.cfg.previews, previewActive = widget.cfg.previewActive
+      widget.applySetting({previews: true, previewActive: true})
+      var p = icon.mapToItem(widget, icon.width / 2, icon.height / 2)
+      mouseMove(widget, p.x, p.y)
+      check(widget.peek(pill.workspaceId) && widget.previewOpen, "Could not open preview before icon click")
+      var expected = sentBy(function() { widget.activateItem(icon.item) })
+      check(widget.peek(pill.workspaceId) && widget.previewOpen, "Could not reopen preview before icon click")
+      var clicked = sentBy(function() { mouseClick(widget, p.x, p.y) })
+      check(clicked === expected && !widget.previewOpen,
+        "Icon click must dismiss the preview and keep its focus action")
+      wait(450)
+      check(!widget.previewOpen, "Dismissed preview reopened while the pointer stayed on the icon")
+
+      widget.pillHovered(pill, true)
+      mouseClick(widget, p.x, p.y)
+      wait(450)
+      check(!widget.previewOpen, "Icon click did not cancel the pending hover preview")
+      widget.applySetting({previews: previews, previewActive: previewActive})
+      mouseMove(widget, widget.width - 1, widget.height + 20)
+      console.log("PASS: app icon click dismisses open and pending previews while preserving focus")
     }
     function previousWindow() {
       var current = widget.backgroundWindowAddress()

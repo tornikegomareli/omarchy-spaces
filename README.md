@@ -12,6 +12,8 @@ Spaces is a workspace switcher for the [Omarchy](https://omarchy.org) bar. Each 
 
 Hover another workspace to see it live, laid out the way it is on screen. Click a window in the preview to jump to it.
 
+Clicking an app icon on the bar dismisses its preview as it selects the window.
+
 Hover an app icon to bring its floating thumbnail forward. It stays in front
 as you move across other thumbnails into the preview, so you can click it.
 Grouped app icons highlight all their windows; hover another window in the group
