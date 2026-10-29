@@ -170,6 +170,10 @@ FloatingWindow {
         sibling.x = 60; sibling.y = 10; sibling.width = 100; sibling.height = 80
         crossed.x = 10; crossed.y = 60; crossed.width = 150; crossed.height = 80
         check(primary.z > sibling.z, "Selected window is not above the overlapping thumbnail")
+        // Moving the thumbnails can change the popup's hover target. Begin
+        // the pointer path at the icon after the test layout is in place.
+        mouseMove(widget, p.x, p.y)
+        mouseMove(widget, p.x, widget.height + 2)
         // Moving upward crosses the exposed bottom of another app first.
         // Keep the icon's selection above that app until the pointer reaches it.
         for (var y = 135; y >= 50; y -= 5) {
@@ -297,9 +301,13 @@ FloatingWindow {
       console.log("PASS: opt-in current workspace icon previews, grouped highlights, live setting changes, and master switch")
     }
     function iconDismissesPreview() {
-      var icon = collect(widget, function(item) { return item.agentState !== undefined && !!item.item }, [])[0]
-      check(icon, "Need an app icon for the preview dismissal check")
+      var icons = collect(widget, function(item) { return item.agentState !== undefined && !!item.item }, [])
+      var icon = icons.filter(function(candidate) {
+        return icons.some(function(other) { return other !== candidate && pillOf(other) === pillOf(candidate) })
+      })[0]
+      check(icon, "Need two app icons on one workspace for the preview dismissal check")
       var pill = pillOf(icon)
+      var other = icons.filter(function(candidate) { return candidate !== icon && pillOf(candidate) === pill })[0]
       var previews = widget.cfg.previews, previewActive = widget.cfg.previewActive
       widget.applySetting({previews: true, previewActive: true})
       var p = icon.mapToItem(widget, icon.width / 2, icon.height / 2)
@@ -317,9 +325,27 @@ FloatingWindow {
       mouseClick(widget, p.x, p.y)
       wait(450)
       check(!widget.previewOpen, "Icon click did not cancel the pending hover preview")
+
+      // Crossing between apps never leaves the workspace pill, so it must
+      // restart the preview independently of the pill's hover state.
+      var q = other.mapToItem(widget, other.width / 2, other.height / 2)
+      mouseMove(widget, q.x, q.y)
+      wait(450)
+      check(widget.previewOpen && widget.highlightAddress === other.item.address,
+        "Moving to another app in the same workspace did not reopen its preview: "
+        + JSON.stringify({open: widget.previewOpen, wanted: widget.previewWanted,
+          highlighted: widget.highlightAddress, expected: other.item.address,
+          hovered: other.hovered, pillHovered: pill.hovered, workspace: widget.previewWorkspaceId}))
+      mouseClick(widget, q.x, q.y)
+      check(!widget.previewOpen, "Clicking the next app did not dismiss its preview")
+      mouseMove(widget, p.x, p.y)
+      wait(450)
+      check(widget.previewOpen && widget.highlightAddress === icon.item.address,
+        "Moving back to the previous app did not reopen its preview")
+      widget.hidePreview()
       widget.applySetting({previews: previews, previewActive: previewActive})
       mouseMove(widget, widget.width - 1, widget.height + 20)
-      console.log("PASS: app icon click dismisses open and pending previews while preserving focus")
+      console.log("PASS: app icon click dismisses open and pending previews; hovering another app reopens with its selection")
     }
     function previousWindow() {
       var current = widget.backgroundWindowAddress()

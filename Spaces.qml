@@ -1399,6 +1399,9 @@ Panel {
                     onWheel: function(wheel) { root.scrollBy(wheel.angleDelta.y || wheel.angleDelta.x) }
                     onContainsMouseChanged: {
                       if (containsMouse && appIcon.item) {
+                        // Crossing app icons does not re-enter the workspace
+                        // pill. Resume previews after a click dismissed one.
+                        if (!root.previewOpen) root.pillHovered(pill, true)
                         root.highlightWorkspaceId = pill.workspaceId
                         root.highlightAddress = appIcon.item.address
                         root.highlightAddresses = appIcon.item.addresses || [appIcon.item.address]
@@ -1411,7 +1414,8 @@ Panel {
                       } else {
                         // Keep the thumbnail raised while crossing into the
                         // preview, including the gap between it and the bar.
-                        if (!root.previewOpen) root.clearPreviewHighlight()
+                        if (!root.previewOpen && appIcon.item
+                            && root.highlightAddress === appIcon.item.address) root.clearPreviewHighlight()
                         root.hideTip(appIcon)
                       }
                     }
