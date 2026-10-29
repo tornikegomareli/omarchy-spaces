@@ -335,44 +335,69 @@ Panel {
     return ipc && ipc["class"] ? ipc["class"] : ""
   }
 
-  // { [workspaceId]: { id, active, windows: [{ address, appId, title, focused, at }] } }
-  readonly property var workspaceMap: {
+  property var windowPlacements: ({})
+  readonly property var windowSnapshots: {
     root.revision
-    var values = Hyprland.workspaces.values
+    var toplevels = Hyprland.toplevels.values
     var activeToplevel = Hyprland.activeToplevel
+    var windows = []
+    for (var i = 0; i < toplevels.length; i++) {
+      var tl = toplevels[i]
+      var ipc = tl.lastIpcObject || {}
+      var ws = tl.workspace
+      windows.push({
+        address: String(tl.address),
+        appId: root.cfg.agentIcons ? Model.agentAppId(root.appIdOf(tl), tl.title) : root.appIdOf(tl),
+        title: String(tl.title || ""),
+        focused: activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
+        at: ipc.at && ipc.at.length === 2 ? [ipc.at[0], ipc.at[1]] : null,
+        size: ipc.size && ipc.size.length === 2 ? [ipc.size[0], ipc.size[1]] : null,
+        floating: ipc.floating === true,
+        pid: ipc.pid || 0,
+        toplevel: tl.wayland,
+        workspaceId: ws ? ws.id : -1,
+        workspaceName: ws ? ws.name : "",
+        ipcWorkspaceName: ipc.workspace ? ipc.workspace.name : "",
+        tags: ipc.tags || [],
+        monitor: ws ? ws.monitor : null
+      })
+    }
+    return windows
+  }
+
+  onWindowSnapshotsChanged: root.windowPlacements = Model.windowPlacements(root.windowSnapshots, root.windowPlacements)
+
+  function workspaceArea(mon) {
+    return mon ? Model.monitorArea({
+      x: mon.x, y: mon.y, width: mon.width, height: mon.height, scale: mon.scale,
+      transform: mon.lastIpcObject ? mon.lastIpcObject.transform : 0,
+      reserved: mon.lastIpcObject ? mon.lastIpcObject.reserved : null
+    }) : null
+  }
+
+  // Minimized windows still occupy their original workspace, even when it no
+  // longer exists in Hyprland because its last visible window was minimized.
+  readonly property var workspaceMap: {
+    var values = Hyprland.workspaces.values
     var perMonitor = cfg.perMonitor && root.monitor !== null
     var map = ({})
-
+    var workspaceMonitors = ({})
     for (var i = 0; i < values.length; i++) {
       var ws = values[i]
       if (ws.id <= 0) continue
+      workspaceMonitors[ws.id] = ws.monitor
       if (perMonitor && ws.monitor !== root.monitor) continue
-
-      var windows = []
-      var toplevels = ws.toplevels.values
-      for (var j = 0; j < toplevels.length; j++) {
-        var tl = toplevels[j]
-        var ipc = tl.lastIpcObject || {}
-        windows.push({
-          address: String(tl.address),
-          appId: root.cfg.agentIcons ? Model.agentAppId(root.appIdOf(tl), tl.title) : root.appIdOf(tl),
-          title: String(tl.title || ""),
-          focused: activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
-          at: ipc.at && ipc.at.length === 2 ? [ipc.at[0], ipc.at[1]] : null,
-          size: ipc.size && ipc.size.length === 2 ? [ipc.size[0], ipc.size[1]] : null,
-          floating: ipc.floating === true,
-          pid: ipc.pid || 0,
-          toplevel: tl.wayland
-        })
-      }
-      var mon = ws.monitor
-      var area = mon ? Model.monitorArea({
-        x: mon.x, y: mon.y, width: mon.width, height: mon.height, scale: mon.scale,
-        transform: mon.lastIpcObject ? mon.lastIpcObject.transform : 0,
-        reserved: mon.lastIpcObject ? mon.lastIpcObject.reserved : null
-      }) : null
-      map[ws.id] = { id: ws.id, windows: Model.sortWindows(windows), area: area }
+      map[ws.id] = { id: ws.id, windows: [], area: root.workspaceArea(ws.monitor) }
     }
+    for (var key in root.windowPlacements) {
+      var window = root.windowPlacements[key]
+      var id = window.workspaceId
+      var mon = workspaceMonitors[id] || window.monitor
+      if (perMonitor && mon !== root.monitor) continue
+      if (!map[id]) map[id] = { id: id, windows: [], area: root.workspaceArea(mon) }
+      map[id].windows.push(window)
+    }
+    for (var id in map) map[id].windows = Model.sortWindows(map[id].windows)
     return map
   }
 
@@ -393,9 +418,16 @@ Panel {
   }
 
   function focusWindow(address) {
-    var target = "address:0x" + String(address).replace(/^0x/, "")
-    run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"" + target + "\" })")
-      + " >/dev/null 2>&1 || hyprctl dispatch focuswindow " + Util.shellQuote(target))
+    var key = Model.normalizeAddress(address)
+    var target = "address:0x" + key
+    var command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"" + target + "\" })")
+      + " >/dev/null 2>&1 || hyprctl dispatch focuswindow " + Util.shellQuote(target)
+    var placement = root.windowPlacements[key]
+    if (placement && placement.minimized) {
+      var restore = "hl.dsp.window.move({ workspace = \"" + placement.workspaceId + "\", follow = false, window = \"" + target + "\" })"
+      command = "hyprctl dispatch " + Util.shellQuote(restore) + " && (" + command + ")"
+    }
+    run(command)
   }
 
   function closeWindow(address) {
