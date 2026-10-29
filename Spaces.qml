@@ -111,23 +111,67 @@ Panel {
   property int lastWorkspaceId: -1
 
   property var windowFocusHistory: []
+  property string pendingWindowFocus: ""
 
   function liveWindowAddresses() {
-    return Hyprland.toplevels.values.map(function(toplevel) {
+    // Spaces represents regular workspaces. An overlay must not become the
+    // return target when switching the workspace underneath it.
+    return Hyprland.toplevels.values.filter(function(toplevel) {
+      return toplevel.workspace && toplevel.workspace.id > 0
+    }).map(function(toplevel) {
       return Model.normalizeAddress(toplevel.address)
     })
   }
 
-  function rememberFocusedWindow() {
+  function backgroundWindowAddress() {
+    var active = Hyprland.activeToplevel
+    if (!active) return ""
+    if (active.workspace && active.workspace.id > 0) return Model.normalizeAddress(active.address)
+    var monitor = Hyprland.focusedMonitor
+    var workspace = monitor ? monitor.activeWorkspace : Hyprland.focusedWorkspace
+    if (!workspace || workspace.id <= 0) return ""
+    var addresses = workspace.toplevels.values.map(function(toplevel) {
+      return Model.normalizeAddress(toplevel.address)
+    })
+    for (var i = 0; i < root.windowFocusHistory.length; i++) {
+      var address = root.windowFocusHistory[i]
+      if (addresses.indexOf(address) !== -1) return address
+    }
+    var last = Model.normalizeAddress((workspace.lastIpcObject || {}).lastwindow)
+    return addresses.indexOf(last) !== -1 ? last : ""
+  }
+
+  function rememberFocusedWindow(address) {
+    var current = Model.normalizeAddress(address === undefined ? root.backgroundWindowAddress() : address)
+    var open = root.liveWindowAddresses()
+    if (!current || open.indexOf(current) === -1) return
+    if (root.pendingWindowFocus) {
+      // Entering a workspace can focus its last window before the requested
+      // one. Keep the origin as "previous" until the requested focus arrives.
+      if (open.indexOf(root.pendingWindowFocus) !== -1 && current !== root.pendingWindowFocus) return
+      root.pendingWindowFocus = ""
+      windowFocusTimeout.stop()
+    }
     root.windowFocusHistory = Model.rememberWindowFocus(
-      root.windowFocusHistory, root.activeWindowAddress(), root.liveWindowAddresses())
+      root.windowFocusHistory, current, open)
+  }
+
+  Timer {
+    id: windowFocusTimeout
+    // Recovery only: a failed dispatch must not leave history paused. A
+    // successful focus clears the request immediately, without a delay.
+    interval: 1000
+    onTriggered: {
+      root.pendingWindowFocus = ""
+      root.rememberFocusedWindow()
+    }
   }
 
   onCurrentWorkspaceIdChanged: {
     if (root.lastWorkspaceId > 0 && root.lastWorkspaceId !== root.currentWorkspaceId)
       root.previousWorkspaceId = root.lastWorkspaceId
     root.lastWorkspaceId = root.currentWorkspaceId
-    if (root.currentWorkspaceId === root.previewWorkspaceId) root.hidePreview()
+    if (root.currentWorkspaceId === root.previewWorkspaceId && !root.cfg.previewActive) root.hidePreview()
   }
 
   // Addresses (normalized) of windows that requested attention and have not
@@ -340,6 +384,7 @@ Panel {
     root.revision
     var values = Hyprland.workspaces.values
     var activeToplevel = Hyprland.activeToplevel
+    var activeAddress = root.backgroundWindowAddress()
     var perMonitor = cfg.perMonitor && root.monitor !== null
     var map = ({})
 
@@ -357,7 +402,8 @@ Panel {
           address: String(tl.address),
           appId: root.cfg.agentIcons ? Model.agentAppId(root.appIdOf(tl), tl.title) : root.appIdOf(tl),
           title: String(tl.title || ""),
-          focused: activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
+          focused: activeAddress ? Model.normalizeAddress(tl.address) === activeAddress
+            : activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
           at: ipc.at && ipc.at.length === 2 ? [ipc.at[0], ipc.at[1]] : null,
           size: ipc.size && ipc.size.length === 2 ? [ipc.size[0], ipc.size[1]] : null,
           floating: ipc.floating === true,
@@ -393,9 +439,37 @@ Panel {
   }
 
   function focusWindow(address) {
-    var target = "address:0x" + String(address).replace(/^0x/, "")
-    run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"" + target + "\" })")
-      + " >/dev/null 2>&1 || hyprctl dispatch focuswindow " + Util.shellQuote(target))
+    root.rememberFocusedWindow()
+    var key = Model.normalizeAddress(address)
+    root.pendingWindowFocus = key === root.backgroundWindowAddress() ? "" : key
+    if (root.pendingWindowFocus) windowFocusTimeout.restart()
+    else {
+      windowFocusTimeout.stop()
+      root.rememberFocusedWindow()
+    }
+    var target = "address:0x" + key
+    // Change the regular workspace directly while an overlay is open. Focusing
+    // the background window would close the overlay and start its exit animation.
+    var expression = [
+      "local w = assert(hl.get_window(" + JSON.stringify(target) + "))",
+      "local m = w.monitor",
+      "local s = m and m.active_special_workspace",
+      "local a = hl.get_active_window()",
+      "local background = s and not w.workspace.special",
+      "if background then m:set_workspace({ workspace = w.workspace })",
+      "else hl.dispatch(hl.dsp.focus({ window = w })) end",
+      "hl.dispatch(hl.dsp.window.alter_zorder({ window = w, mode = \"top\" }))",
+      "if background then",
+      "if a and a.workspace == s then hl.dispatch(hl.dsp.focus({ window = a })) end",
+      // The background selection does not take keyboard focus from the overlay.
+      "hl.dispatch(hl.dsp.event(" + JSON.stringify(root.moduleName + ":background:" + key) + "))",
+      "end"
+    ].join("; ")
+    var fallback = "(hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"" + target + "\" })")
+      + " >/dev/null 2>&1 || hyprctl dispatch focuswindow " + Util.shellQuote(target) + ")"
+      + " && (hyprctl dispatch " + Util.shellQuote("hl.dsp.window.alter_zorder({ window = \"" + target + "\", mode = \"top\" })")
+      + " >/dev/null 2>&1 || hyprctl dispatch alterzorder " + Util.shellQuote("top," + target) + ")"
+    run("hyprctl eval " + Util.shellQuote(expression) + " >/dev/null 2>&1 || (" + fallback + ")")
   }
 
   function closeWindow(address) {
@@ -413,6 +487,7 @@ Panel {
   }
 
   function activateItem(item) {
+    root.hidePreview()
     root.rememberFocusedWindow()
     var target = Model.iconClickTarget(item, root.cfg.activeIconClick,
       root.windowFocusHistory, root.liveWindowAddresses())
@@ -442,10 +517,16 @@ Panel {
     target: Hyprland
     function onRawEvent(event) {
       switch (event.name) {
+      case "custom":
+        var prefix = root.moduleName + ":background:"
+        if (event.data.indexOf(prefix) === 0) root.rememberFocusedWindow(event.data.slice(prefix.length))
+        break
       case "urgent":
         root.setUrgent(event.data, true)
         break
       case "activewindowv2":
+        // Use the event's window even if activeToplevel has already changed.
+        root.rememberFocusedWindow(event.data)
         root.hideHeldNumbers()
         root.setUrgent(event.data, false)
         refreshDebounce.restart()
@@ -626,20 +707,45 @@ Panel {
 
   // ------------------------------------------------------------ previews
 
-  // Hovering a pill of another workspace shows a live miniature of it. One
+  // Hovering a workspace pill shows a live miniature of it. One
   // card serves every pill and slides between them.
   property int previewWorkspaceId: -1
   property Item previewPill: null
   property bool previewWanted: false
   property string highlightAddress: ""
+  property var highlightAddresses: []
+  property int highlightWorkspaceId: -1
+  property bool previewHandoffPending: false
+
+  function clearPreviewHighlight() {
+    root.highlightAddress = ""
+    root.highlightAddresses = []
+    root.highlightWorkspaceId = -1
+    root.previewHandoffPending = false
+  }
+
+  onPreviewWorkspaceIdChanged: {
+    if (root.highlightWorkspaceId !== root.previewWorkspaceId) root.clearPreviewHighlight()
+  }
 
   readonly property bool previewOpen: previewWanted && previewWorkspaceId > 0 && !root.opened
     && root.cfg.previews && !!root.workspaceMap[previewWorkspaceId]
     && root.workspaceMap[previewWorkspaceId].windows.length > 0
 
+  function hoverPreviewAllowed(pill) {
+    return root.cfg.previews && !!pill && pill.occupied
+      && (root.cfg.previewActive || pill.workspaceId !== root.currentWorkspaceId)
+  }
+
+  onCfgChanged: {
+    if (root.previewWanted && (!root.cfg.previews
+        || (!root.cfg.previewActive && root.previewWorkspaceId === root.currentWorkspaceId)))
+      root.hidePreview()
+  }
+
   function pillHovered(pill, hovered) {
     if (!root.cfg.previews) return
-    if (hovered && pill.workspaceId !== root.currentWorkspaceId && pill.occupied) {
+    if (hovered && root.hoverPreviewAllowed(pill)) {
       previewHideTimer.stop()
       root.previewPill = pill
       if (root.previewOpen) {
@@ -658,8 +764,9 @@ Panel {
   function hidePreview() {
     previewShowTimer.stop()
     previewHideTimer.stop()
+    peekTimer.stop()
     root.previewWanted = false
-    root.highlightAddress = ""
+    root.clearPreviewHighlight()
   }
 
   function placePreviewAnchor(animate) {
@@ -677,7 +784,7 @@ Panel {
     id: previewShowTimer
     interval: 380
     onTriggered: {
-      if (!root.previewPill) return
+      if (!root.hoverPreviewAllowed(root.previewPill)) return
       root.previewWorkspaceId = root.previewPill.workspaceId
       root.placePreviewAnchor(false)
       root.previewWanted = true
@@ -687,7 +794,9 @@ Panel {
   Timer {
     id: previewHideTimer
     interval: 200
-    onTriggered: if (!preview.containsMouse) root.hidePreview()
+    onTriggered: {
+      if (!preview.containsMouse && !(root.previewPill && root.previewPill.hovered)) root.hidePreview()
+    }
   }
 
   // Opens the preview for a workspace without hovering, e.g. from a
@@ -1214,14 +1323,24 @@ Panel {
                     }
                     onWheel: function(wheel) { root.scrollBy(wheel.angleDelta.y || wheel.angleDelta.x) }
                     onContainsMouseChanged: {
-                      root.highlightAddress = containsMouse && appIcon.item ? appIcon.item.address : ""
                       if (containsMouse && appIcon.item) {
+                        // Crossing app icons does not re-enter the workspace
+                        // pill. Resume previews after a click dismissed one.
+                        if (!root.previewOpen) root.pillHovered(pill, true)
+                        root.highlightWorkspaceId = pill.workspaceId
+                        root.highlightAddress = appIcon.item.address
+                        root.highlightAddresses = appIcon.item.addresses || [appIcon.item.address]
+                        root.previewHandoffPending = true
                         var tip = appIcon.item.title || appIcon.info.name
                         if (appIcon.item.count > 1) tip = appIcon.info.name + " (" + appIcon.item.count + " windows)"
                         var agentText = { working: "Agent working", waiting: "Agent needs your input", done: "Agent finished" }[appIcon.agentState]
                         if (agentText) tip = agentText + " \u00b7 " + tip
                         if (!root.previewOpen) root.showTip(appIcon, tip)
                       } else {
+                        // Keep the thumbnail raised while crossing into the
+                        // preview, including the gap between it and the bar.
+                        if (!root.previewOpen && appIcon.item
+                            && root.highlightAddress === appIcon.item.address) root.clearPreviewHighlight()
                         root.hideTip(appIcon)
                       }
                     }
@@ -1430,14 +1549,17 @@ Panel {
           required property var modelData
           readonly property var rect: mini.rects[modelData] || null
           readonly property var win: root.windowByAddress(modelData)
-          readonly property bool highlighted: root.highlightAddress === modelData || thumbMouse.containsMouse
+          readonly property bool highlighted: root.highlightAddress === modelData || root.highlightAddresses.indexOf(modelData) !== -1 || thumbMouse.containsMouse
           readonly property real inset: Style.space(2)
 
           x: rect ? rect.x + inset : 0
           y: rect ? rect.y + inset : 0
           width: rect ? Math.max(2, rect.width - inset * 2) : 0
           height: rect ? Math.max(2, rect.height - inset * 2) : 0
-          z: rect && rect.floating ? 1 : 0
+          // Keep the selected app above other thumbnails crossed on the way
+          // in, with one member of a group as the top hit target.
+          z: rect && rect.floating ? (root.highlightAddress === modelData ? 4
+            : root.highlightAddresses.indexOf(modelData) !== -1 ? 3 : thumbMouse.containsMouse ? 2 : 1) : 0
 
           Behavior on x { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
           Behavior on y { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
@@ -1499,8 +1621,17 @@ Panel {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onContainsMouseChanged: {
-              if (containsMouse) root.highlightAddress = thumb.modelData
-              else if (root.highlightAddress === thumb.modelData) root.highlightAddress = ""
+              if (containsMouse && (!root.previewHandoffPending
+                  || root.highlightAddresses.indexOf(thumb.modelData) !== -1)) {
+                // An unrelated thumbnail's exposed edge may sit between the
+                // bar and the selected app. Finish the handoff at that app.
+                root.previewHandoffPending = false
+                root.highlightWorkspaceId = root.previewWorkspaceId
+                if (root.highlightAddresses.indexOf(thumb.modelData) === -1) root.highlightAddresses = []
+                // Retain the last target on exit so overlapping thumbnails
+                // cannot swap back under the pointer as their z-order changes.
+                root.highlightAddress = thumb.modelData
+              }
             }
             onClicked: {
               root.focusWindow(thumb.modelData)

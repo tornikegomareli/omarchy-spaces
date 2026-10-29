@@ -12,6 +12,24 @@ Spaces is a workspace switcher for the [Omarchy](https://omarchy.org) bar. Each 
 
 Hover another workspace to see it live, laid out the way it is on screen. Click a window in the preview to jump to it.
 
+Clicking an app icon on the bar dismisses its preview as it selects the window.
+Move onto another app icon to show the preview again with that app highlighted.
+
+Hover an app icon to bring its floating thumbnail forward. It stays in front
+as you move across other thumbnails into the preview, so you can click it.
+Grouped app icons highlight all their windows; hover another window in the group
+to bring that one forward.
+The selection clears when you close the preview or switch to another workspace's preview.
+
+To also preview the workspace you are using, enable **Previews → Preview current
+workspace** in settings. Hovering its pill or an app icon opens the same preview,
+including grouped-window highlights. This is off by default and requires
+**Workspace previews** to be enabled.
+
+```sh
+omarchy bar set tornikegomareli.spaces previewActive true --json
+```
+
 Previews follow the monitor's orientation, including portrait displays, and shrink to fit the available screen space while keeping the full workspace visible. The size setting controls the longest side, so portrait and landscape previews have a comparable size.
 
 <p align="center">
@@ -192,13 +210,19 @@ Under **Behaviour → Clicking the focused app icon**, choose **Previous window*
 to switch back when clicking the icon of the window you are already using.
 For example, focus a browser from your terminal, then click the browser icon
 again to return to that terminal. This works across workspaces too.
+The destination workspace's temporary focus while switching is ignored, so
+the next click returns to the window you came from.
+Scratchpads and other special workspaces are excluded from this history.
+If a scratchpad is open, selecting a window changes the workspace underneath
+while keeping the scratchpad visible, focused, and stationary.
 
 ```sh
 omarchy bar set tornikegomareli.spaces activeIconClick previous
 ```
 
 The default, **Cycles windows** (`activeIconClick cycle`), keeps the existing
-behavior for grouped apps. **Previous window** takes precedence over cycling.
+behavior for grouped apps. Grouped apps with multiple windows cycle through
+their windows in either mode; **Previous window** applies to single-window icons.
 Closed windows are skipped; if there is no previous window, focus stays put.
 Focus history starts when Spaces loads.
 

@@ -316,8 +316,15 @@ Item {
 
           ToggleSetting {
             label: "Workspace previews"
-            description: "Hover another workspace to see a live miniature of it"
+            description: "Hover a workspace to see a live miniature of it"
             key: "previews"
+          }
+
+          ToggleSetting {
+            visible: root.cfg.previews
+            label: "Preview current workspace"
+            description: "Also show previews when hovering the current workspace or its app icons"
+            key: "previewActive"
           }
 
           ChoiceSetting {

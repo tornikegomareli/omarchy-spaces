@@ -1,11 +1,12 @@
 import QtQuick
-import QtQuick.Window
 import QtTest
 import Quickshell
-Window {
+import Quickshell.Hyprland
+import "Model.js" as Model
+FloatingWindow {
   visible: true
   // Grows with the widget so every pill stays inside the window, even on a long vertical bar.
-  width: Math.max(900, widget.implicitWidth); height: Math.max(100, widget.implicitHeight)
+  implicitWidth: Math.max(900, widget.implicitWidth); implicitHeight: Math.max(100, widget.implicitHeight)
   // Stands in for the bar; run() records commands instead of dispatching them.
   QtObject {
     id: fakeBar
@@ -87,10 +88,267 @@ Window {
       console.log("PASS: stable gear position, click opens settings, hidden mode")
       workspaceEdges()
       appIcons()
+      iconDismissesPreview()
       previousWindow()
+      crossWorkspaceFocusHistory()
+      specialWorkspaceHistory()
+      workspacePreviews()
+      previewHandoff()
+    }
+    function previewHandoff() {
+      widget.applySetting({previews: true, previewActive: true, groupApps: true, previewLive: false})
+      wait(50)
+      var icons = collect(widget, function(item) {
+        return item.agentState !== undefined && !!item.item
+          && pillOf(item).workspace.windows.filter(function(window) { return window.floating }).length > 1
+          && pillOf(item).workspace.windows.some(function(window) {
+            return window.address === item.item.address && window.floating
+          })
+      }, [])
+      var single = icons.filter(function(icon) {
+        return icon.item.count === 1
+          && pillOf(icon).workspace.windows.filter(function(window) { return window.floating }).length > 2
+      })[0]
+      var grouped = icons.filter(function(icon) {
+        var windows = pillOf(icon).workspace.windows
+        return windows.filter(function(window) {
+          return window.floating && icon.item.addresses.indexOf(window.address) !== -1
+        }).length > 1 && windows.some(function(window) {
+          return window.floating && icon.item.addresses.indexOf(window.address) === -1
+        })
+      })[0]
+      if (!single && !grouped) {
+        console.log("SKIP: need three floating windows, including another app, for the preview handoff check")
+        return
+      }
+      for (var icon of [single, grouped].filter(function(item) { return !!item })) {
+        widget.hidePreview()
+        mouseMove(widget, widget.width - 1, widget.height + 20)
+        wait(50)
+        var p = icon.mapToItem(widget, icon.width / 2, icon.height / 2)
+        mouseMove(widget, p.x, p.y)
+        wait(450)
+        check(widget.previewOpen, "Floating window preview did not open: icon=" + icon.hovered
+          + ", pill=" + pillOf(icon).hovered + ", workspace=" + pillOf(icon).workspaceId
+          + ", preview=" + widget.previewWorkspaceId + ", wanted=" + widget.previewWanted)
+        var selected = icon.item.address
+        var group = JSON.stringify(icon.item.addresses)
+        fakeBar.commands = []
+        // Leave the icon through the gap before entering the popup.
+        mouseMove(widget, p.x, widget.height + 2)
+        check(widget.highlightAddress === selected && JSON.stringify(widget.highlightAddresses) === group,
+          "Leaving the app icon dropped its preview selection before the pointer reached the popup")
+
+        var card = null
+        for (var resource of widget.resources) {
+          if (resource.mapWidth !== undefined && resource.triggerMode === "hover") card = resource
+        }
+        check(card, "Missing workspace preview card")
+        var thumbs = []
+        for (var content of card.contentItem) collect(content, function(item) {
+          return item.rect !== undefined && item.highlighted !== undefined
+        }, thumbs)
+        var primary = thumbs.filter(function(thumb) { return thumb.modelData === selected })[0]
+        check(primary, "Missing selected thumbnail " + selected + ": "
+          + JSON.stringify(thumbs.map(function(thumb) { return thumb.modelData }))
+          + ", visible=" + card.visible + ", contents=" + card.contentItem.length)
+        var siblings = thumbs.filter(function(thumb) {
+          return thumb !== primary && thumb.rect.floating
+            && (icon.item.count === 1 || icon.item.addresses.indexOf(thumb.modelData) !== -1)
+        })
+        var sibling = siblings[siblings.length - 1]
+        check(sibling, "Need another floating thumbnail for the overlap check")
+        var crossed = thumbs.filter(function(thumb) {
+          return thumb !== primary && thumb !== sibling && thumb.rect.floating
+            && icon.item.addresses.indexOf(thumb.modelData) === -1
+        })[0]
+        check(crossed, "Need an unrelated floating thumbnail for the path into the preview")
+        var rear = sibling
+        // Make the overlap deterministic while keeping the real delegates and hit targets.
+        for (var thumb of thumbs) thumb.visible = thumb === primary || thumb === sibling || thumb === crossed
+        primary.x = 10; primary.y = 10; primary.width = 100; primary.height = 80
+        sibling.x = 60; sibling.y = 10; sibling.width = 100; sibling.height = 80
+        crossed.x = 10; crossed.y = 60; crossed.width = 150; crossed.height = 80
+        check(primary.z > sibling.z, "Selected window is not above the overlapping thumbnail")
+        // Moving the thumbnails can change the popup's hover target. Begin
+        // the pointer path at the icon after the test layout is in place.
+        mouseMove(widget, p.x, p.y)
+        mouseMove(widget, p.x, widget.height + 2)
+        // Moving upward crosses the exposed bottom of another app first.
+        // Keep the icon's selection above that app until the pointer reaches it.
+        for (var y = 135; y >= 50; y -= 5) {
+          mouseMove(primary.parent, 85, y)
+          wait(5)
+          check(widget.highlightAddress === selected && JSON.stringify(widget.highlightAddresses) === group
+            && primary.z > crossed.z && (icon.item.count === 1 || sibling.z > crossed.z),
+            "Crossing another app on the way into the preview sent the selected window behind it at y=" + y)
+        }
+        wait(250)
+        check(card.containsMouse && widget.previewOpen && widget.highlightAddress === selected
+          && !widget.previewHandoffPending,
+          "Selected thumbnail did not stay reachable after entering the preview")
+        check(fakeBar.commands.length === 0, "Hovering the preview changed actual window focus or stacking")
+        if (icon.item.count > 1) {
+          mouseMove(sibling, 90, 40)
+          wait(20)
+          check(widget.highlightAddress === sibling.modelData && sibling.z > primary.z,
+            "Hovering another window in the app group did not bring its thumbnail forward")
+          mouseMove(sibling, 25, 40)
+          wait(20)
+          check(widget.highlightAddress === sibling.modelData && sibling.z > primary.z,
+            "Moving into the grouped windows' overlap changed the selected window")
+          rear = primary
+          primary = sibling
+        }
+        selected = primary.modelData
+        mouseMove(primary.parent, 2, 2)
+        wait(20)
+        check(widget.highlightAddress === selected && primary.z > rear.z,
+          "Leaving a thumbnail dropped it behind another window")
+        mouseMove(primary, 25, 40)
+        var clicked = sentBy(function() { mouseClick(primary, 25, 40) })
+        check(clicked.indexOf("address:0x" + Model.normalizeAddress(selected)) !== -1,
+          "Preview click did not select the window that stayed in front")
+        check(!widget.previewOpen && widget.highlightAddress === "" && widget.highlightAddresses.length === 0,
+          "Closing the preview did not clear the retained selection")
+        console.log("PASS: icon-to-preview path across another app, stable overlap hit target, and click for "
+          + (icon.item.count > 1 ? "grouped floating windows" : "a single floating window"))
+      }
+      if (!grouped) console.log("SKIP: need multiple floating windows of one app for grouped handoff")
+      icon = single || grouped
+      mouseMove(widget, widget.width - 1, widget.height + 20)
+      wait(250)
+      p = icon.mapToItem(widget, icon.width / 2, icon.height / 2)
+      mouseMove(widget, p.x, p.y)
+      wait(450)
+      var other = widget.workspaceIds.filter(function(id) {
+        return id !== pillOf(icon).workspaceId && widget.workspaceMap[id] && widget.workspaceMap[id].windows.length
+      })[0]
+      if (other !== undefined) {
+        check(widget.peek(other), "Could not open another workspace preview")
+        check(widget.highlightAddress === "" && widget.highlightAddresses.length === 0,
+          "Another workspace inherited the previous preview's selection")
+      }
+      widget.hidePreview()
+      mouseMove(widget, widget.width - 1, widget.height + 20)
+      wait(250)
+      mouseMove(widget, p.x, p.y)
+      wait(450)
+      check(widget.previewOpen && widget.highlightAddress === icon.item.address,
+        "Reopening a preview lost the icon's initial selection")
+      mouseMove(widget, p.x, widget.height + 2)
+      wait(250)
+      check(!widget.previewOpen && widget.highlightAddress === "" && widget.highlightAddresses.length === 0,
+        "Leaving the icon and preview did not close it and clear the selection")
+      console.log("PASS: workspace changes, reopening, and hover dismissal clear the selection at the right time")
+    }
+    function workspacePreviews() {
+      var activePill = collect(widget, function(item) {
+        return item.workspaceId === widget.currentWorkspaceId && item.showApps !== undefined
+      }, [])[0]
+      check(activePill && activePill.occupied, "Need an occupied current workspace for the preview check")
+      var icon = collect(activePill, function(item) { return item.agentState !== undefined && !!item.item }, [])[0]
+      check(icon, "Need a current-workspace app icon for the preview check")
+      var outside = Qt.point(widget.width - 1, widget.height + 20)
+      mouseMove(widget, outside.x, outside.y)
+      widget.applySetting({previews: true, previewActive: false})
+      widget.hidePreview()
+      var p = icon.mapToItem(widget, icon.width / 2, icon.height / 2)
+      mouseMove(widget, p.x, p.y)
+      wait(450)
+      check(!widget.previewOpen, "Current workspace preview should be opt-in")
+
+      mouseMove(widget, outside.x, outside.y)
+      widget.applySetting({previewActive: true})
+      fakeBar.commands = []
+      mouseMove(widget, p.x, p.y)
+      wait(450)
+      check(icon.hovered && widget.previewOpen && widget.previewWorkspaceId === widget.currentWorkspaceId,
+        "Hovering a current-workspace app icon did not open its preview")
+      check(JSON.stringify(widget.highlightAddresses) === JSON.stringify(icon.item.addresses),
+        "Current-workspace preview lost the app's grouped-window highlights")
+      check(fakeBar.commands.length === 0, "Preview hover must not focus or raise actual windows")
+      widget.applySetting({previewActive: false})
+      check(!widget.previewOpen, "Disabling current workspace previews did not close the preview")
+
+      // A setting changed during the hover delay must prevent the pending popup.
+      mouseMove(widget, outside.x, outside.y)
+      widget.applySetting({previewActive: true})
+      mouseMove(widget, p.x, p.y)
+      widget.applySetting({previewActive: false})
+      wait(450)
+      check(!widget.previewOpen, "Pending current workspace preview ignored the disabled option")
+
+      check(widget.peek(widget.currentWorkspaceId) && widget.previewOpen,
+        "Explicit peek of the current workspace should still work without opting into hover previews")
+      widget.hidePreview()
+      var otherPill = collect(widget, function(item) {
+        return item.workspaceId !== widget.currentWorkspaceId && item.showApps !== undefined && item.occupied
+      }, [])[0]
+      if (otherPill) {
+        widget.pillHovered(otherPill, true)
+        wait(450)
+        check(widget.previewOpen && widget.previewWorkspaceId === otherPill.workspaceId,
+          "Other workspace previews stopped working with the option disabled")
+      }
+      widget.applySetting({previews: false, previewActive: true})
+      widget.pillHovered(activePill, true)
+      wait(450)
+      check(!widget.previewOpen, "Master preview switch must also disable current workspace previews")
+      check(!widget.hoverPreviewAllowed({workspaceId: widget.currentWorkspaceId, occupied: false}),
+        "Empty workspaces should not show previews")
+      widget.hidePreview()
+      console.log("PASS: opt-in current workspace icon previews, grouped highlights, live setting changes, and master switch")
+    }
+    function iconDismissesPreview() {
+      var icons = collect(widget, function(item) { return item.agentState !== undefined && !!item.item }, [])
+      var icon = icons.filter(function(candidate) {
+        return icons.some(function(other) { return other !== candidate && pillOf(other) === pillOf(candidate) })
+      })[0]
+      check(icon, "Need two app icons on one workspace for the preview dismissal check")
+      var pill = pillOf(icon)
+      var other = icons.filter(function(candidate) { return candidate !== icon && pillOf(candidate) === pill })[0]
+      var previews = widget.cfg.previews, previewActive = widget.cfg.previewActive
+      widget.applySetting({previews: true, previewActive: true})
+      var p = icon.mapToItem(widget, icon.width / 2, icon.height / 2)
+      mouseMove(widget, p.x, p.y)
+      check(widget.peek(pill.workspaceId) && widget.previewOpen, "Could not open preview before icon click")
+      var expected = sentBy(function() { widget.activateItem(icon.item) })
+      check(widget.peek(pill.workspaceId) && widget.previewOpen, "Could not reopen preview before icon click")
+      var clicked = sentBy(function() { mouseClick(widget, p.x, p.y) })
+      check(clicked === expected && !widget.previewOpen,
+        "Icon click must dismiss the preview and keep its focus action")
+      wait(450)
+      check(!widget.previewOpen, "Dismissed preview reopened while the pointer stayed on the icon")
+
+      widget.pillHovered(pill, true)
+      mouseClick(widget, p.x, p.y)
+      wait(450)
+      check(!widget.previewOpen, "Icon click did not cancel the pending hover preview")
+
+      // Crossing between apps never leaves the workspace pill, so it must
+      // restart the preview independently of the pill's hover state.
+      var q = other.mapToItem(widget, other.width / 2, other.height / 2)
+      mouseMove(widget, q.x, q.y)
+      wait(450)
+      check(widget.previewOpen && widget.highlightAddress === other.item.address,
+        "Moving to another app in the same workspace did not reopen its preview: "
+        + JSON.stringify({open: widget.previewOpen, wanted: widget.previewWanted,
+          highlighted: widget.highlightAddress, expected: other.item.address,
+          hovered: other.hovered, pillHovered: pill.hovered, workspace: widget.previewWorkspaceId}))
+      mouseClick(widget, q.x, q.y)
+      check(!widget.previewOpen, "Clicking the next app did not dismiss its preview")
+      mouseMove(widget, p.x, p.y)
+      wait(450)
+      check(widget.previewOpen && widget.highlightAddress === icon.item.address,
+        "Moving back to the previous app did not reopen its preview")
+      widget.hidePreview()
+      widget.applySetting({previews: previews, previewActive: previewActive})
+      mouseMove(widget, widget.width - 1, widget.height + 20)
+      console.log("PASS: app icon click dismisses open and pending previews; hovering another app reopens with its selection")
     }
     function previousWindow() {
-      var current = String(widget.activeWindowAddress()).replace(/^0x/, "").toLowerCase()
+      var current = widget.backgroundWindowAddress()
       var other = widget.liveWindowAddresses().filter(function(address) { return address !== current })[0]
       if (!current || !other) {
         console.log("SKIP: need two live windows for the previous-window check")
@@ -102,11 +360,88 @@ Window {
       var sent = sentBy(function() { widget.activateItem(icon) })
       check(sent.indexOf("address:0x" + other) !== -1,
         "Focused icon did not target the previous live window: " + sent)
+      check(sent.indexOf("alter_zorder") !== -1 && sent.indexOf("alterzorder") !== -1
+        && sent.indexOf("top,address:0x" + other) !== -1,
+        "Previous window was not raised using the target address: " + sent)
       icon.focused = false
       sent = sentBy(function() { widget.activateItem(icon) })
       check(sent.indexOf("address:0x" + current) !== -1,
         "Unfocused icon did not target its own window: " + sent)
+      check(sent.indexOf("top,address:0x" + current) !== -1,
+        "Icon's window was not raised using the target address: " + sent)
       console.log("PASS: focused icon returns to previous live window; unfocused icon focuses its own window")
+    }
+    function crossWorkspaceFocusHistory() {
+      var current = widget.backgroundWindowAddress()
+      var others = widget.liveWindowAddresses().filter(function(address) { return address !== current })
+      if (!current || others.length < 2) {
+        console.log("SKIP: need three live windows for the intermediate-focus check")
+        return
+      }
+      var target = others[0], intermediate = others[1]
+      widget.windowFocusHistory = [current, intermediate]
+      sentBy(function() { widget.focusWindow(target) })
+      check(widget.pendingWindowFocus === target, "Window focus request was not tracked")
+      widget.rememberFocusedWindow("")
+      widget.rememberFocusedWindow(intermediate)
+      check(JSON.stringify(widget.windowFocusHistory) === JSON.stringify([current, intermediate]),
+        "Workspace's intermediate focus replaced the origin")
+      widget.rememberFocusedWindow(target)
+      check(widget.pendingWindowFocus === "", "Successful focus did not finish the request immediately")
+      var icon = {address: target, addresses: [target], focused: true}
+      check(Model.iconClickTarget(icon, "previous", widget.windowFocusHistory, widget.liveWindowAddresses()) === current,
+        "Focused icon would return inside the destination workspace instead of to the origin")
+      widget.rememberFocusedWindow(intermediate)
+      check(widget.windowFocusHistory[0] === intermediate && widget.windowFocusHistory[1] === target,
+        "Normal focus changes stopped updating history after a successful request")
+
+      // A newer click supersedes an outstanding request.
+      widget.windowFocusHistory = [current]
+      sentBy(function() { widget.focusWindow(target); widget.focusWindow(intermediate) })
+      widget.rememberFocusedWindow(target)
+      check(widget.windowFocusHistory[0] === current, "An older focus request polluted the new request's history")
+      widget.rememberFocusedWindow(intermediate)
+      check(JSON.stringify(widget.windowFocusHistory) === JSON.stringify([intermediate, current]),
+        "Newer focus request lost its origin")
+
+      // Failed dispatches and targets that disappear must not freeze history.
+      sentBy(function() { widget.focusWindow(target) })
+      wait(1100)
+      check(widget.pendingWindowFocus === "", "Failed focus request did not expire")
+      widget.rememberFocusedWindow(intermediate)
+      check(widget.windowFocusHistory[0] === intermediate, "History stayed paused after a failed request")
+      sentBy(function() { widget.focusWindow("deadbeef") })
+      widget.rememberFocusedWindow(target)
+      check(widget.pendingWindowFocus === "" && widget.windowFocusHistory[0] === target,
+        "A vanished target left history paused")
+      widget.rememberFocusedWindow()
+      console.log("PASS: intermediate workspace focus, newer clicks, normal focus, failed requests, and vanished targets")
+    }
+    function specialWorkspaceHistory() {
+      var special = Hyprland.toplevels.values.filter(function(window) {
+        return window.workspace && window.workspace.id < 0
+      }).map(function(window) { return Model.normalizeAddress(window.address) })
+      var current = widget.backgroundWindowAddress()
+      var live = widget.liveWindowAddresses()
+      var target = live.filter(function(address) { return address !== current })[0]
+      if (!special.length || live.indexOf(current) === -1 || !target) {
+        console.log("SKIP: need a special-workspace window and two regular windows for the overlay check")
+        return
+      }
+      widget.windowFocusHistory = [current]
+      sentBy(function() { widget.focusWindow(target) })
+      for (var address of special) {
+        check(live.indexOf(address) === -1, "Special workspace became a previous-window target")
+        widget.rememberFocusedWindow(address)
+        check(widget.pendingWindowFocus === target && widget.windowFocusHistory[0] === current,
+          "Restoring an overlay interrupted the background window focus request")
+      }
+      widget.rememberFocusedWindow(target)
+      check(widget.pendingWindowFocus === ""
+        && JSON.stringify(widget.windowFocusHistory) === JSON.stringify([target, current]),
+        "Background focus completion lost the regular window's return target")
+      widget.rememberFocusedWindow()
+      console.log("PASS: special workspaces stay out of history and preserve pending background focus")
     }
     function workspaceEdges() {
       var workspace = widget.workspaceIds.filter(function(id) { return id !== widget.currentWorkspaceId })[0]
@@ -164,6 +499,8 @@ Window {
       var p = icon.mapToItem(widget, icon.width / 2, icon.height / 2)
       mouseMove(widget, p.x, p.y)
       check(icon.hovered && pillOf(icon).hovered, "Icon hover did not register")
+      check(JSON.stringify(widget.highlightAddresses) === JSON.stringify(icon.item.addresses),
+        "Icon hover did not highlight all its window addresses")
       // Clicking the active pill sends nothing by default, which would hide a stray pill click
       // there. Going back to a previous workspace makes every pill click send a command.
       var activeClick = widget.cfg.activeClick, previous = widget.previousWorkspaceId

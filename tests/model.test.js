@@ -56,11 +56,12 @@ test("focused icon skips closed history and stays put without another window", (
   assert.strictEqual(M.iconClickTarget(icon, "previous", [], ["b"]), "b")
 })
 
-test("previous window mode takes precedence over grouped cycling", () => {
+test("grouped icons cycle their windows in both click modes", () => {
   const icon = {address: "b", addresses: ["b", "c"], focused: true}
-  assert.strictEqual(M.iconClickTarget(icon, "previous", ["b", "a"], ["a", "b", "c"]), "a")
+  assert.strictEqual(M.iconClickTarget(icon, "previous", ["b", "a"], ["a", "b", "c"]), "c")
   assert.strictEqual(M.iconClickTarget(icon, "cycle", ["b", "a"], ["a", "b", "c"]), "c")
   icon.address = "c"
+  assert.strictEqual(M.iconClickTarget(icon, "previous", [], ["b", "c"]), "b")
   assert.strictEqual(M.iconClickTarget(icon, "cycle", [], ["b", "c"]), "b")
 })
 
@@ -397,6 +398,9 @@ test("preview settings validate", () => {
   assert.strictEqual(s.previewSize, "medium")
   assert.strictEqual(s.previews, false)
   assert.strictEqual(s.previewLive, true)
+  assert.strictEqual(s.previewActive, false)
+  assert.strictEqual(M.resolveSettings({ previewActive: true }).previewActive, true)
+  assert.strictEqual(M.resolveSettings({ previewActive: "true" }).previewActive, false)
   assert.strictEqual(M.previewWidth("large"), 520)
 })
 

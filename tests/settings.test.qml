@@ -102,6 +102,16 @@ Window {
       equal(form.cfg.activeIconClick, "previous")
       mouseClick(find(form, "text", "Cycles windows"))
       equal(form.cfg.activeIconClick, "cycle")
+      mouseClick(find(form, "text", "Previews"))
+      wait(50)
+      var activePreview = find(form, "key", "previewActive")
+      equal(form.cfg.previewActive, false)
+      mouseClick(activePreview)
+      equal(form.cfg.previewActive, true)
+      mouseClick(activePreview)
+      equal(form.cfg.previewActive, false)
+      mouseClick(find(form, "key", "previews"))
+      equal(activePreview.visible, false)
       form.cfg = Model.resolveSettings({focusedTitle: true})
       for (var section of ["icons", "windows", "appearance", "workspaces", "previews", "behavior"]) {
         form.section = section
