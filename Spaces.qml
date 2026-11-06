@@ -455,8 +455,29 @@ Panel {
         root.setUrgent(event.data, false)
         refreshDebounce.restart()
         break
+      case "moveworkspace":
+      case "moveworkspacev2":
+      case "changeworkspaceid":
+      case "renameworkspace":
+      case "configreloaded":
+      case "monitoradded":
+      case "monitoraddedv2":
+      case "monitorremoved":
+      case "monitorremovedv2":
+        // Omarchy 4.5's per-monitor workspaces move and renumber workspaces
+        // on every monitor change and config reload; Quickshell only learns
+        // the result by asking Hyprland again.
+        root.syncMonitors()
+        break
       case "workspace":
       case "workspacev2":
+        // Quickshell credits every workspace switch to the focused monitor,
+        // since the event doesn't name one, so a switch on another monitor
+        // (Omarchy's reconcile, a bar click, wake) lands on the wrong bar.
+        // Every bar shares the answer, so only the focused one asks.
+        if (root.monitor && root.monitor.focused) root.syncMonitors()
+        root.hideHeldNumbers()
+        break
       case "openlayer":
         // The Super release binding can be missed after another Super
         // shortcut, so also hide the numbers on the next Hyprland event
@@ -475,6 +496,25 @@ Panel {
         refreshDebounce.restart()
         break
       }
+    }
+  }
+
+  // Ask Hyprland which workspace each monitor shows and where each workspace
+  // lives, now and once more after a burst (a reconcile dispatches several
+  // moves in a row), so the last answer postdates the last change.
+  function syncMonitors() {
+    Hyprland.refreshMonitors()
+    Hyprland.refreshWorkspaces()
+    syncTrailing.restart()
+  }
+
+  Timer {
+    id: syncTrailing
+    interval: 300
+    onTriggered: {
+      Hyprland.refreshMonitors()
+      Hyprland.refreshWorkspaces()
+      revisionBump.restart()
     }
   }
 
@@ -622,6 +662,7 @@ Panel {
     DesktopEntries.applications.values
     iconScan.running = true
     Hyprland.refreshToplevels()
+    root.syncMonitors()
   }
 
   // ------------------------------------------------------------ previews
