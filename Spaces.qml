@@ -80,9 +80,17 @@ Panel {
   // icon order) re-read the freshly refreshed IPC objects.
   property int revision: 0
 
+  // Not Hyprland.monitorFor(): a monitor that is switched back on can reach
+  // this bar before Quickshell has seen Hyprland add it, and monitorFor()
+  // then answers null for good. Looking it up in the list re-runs whenever
+  // a monitor comes or goes.
   readonly property var monitor: {
     var w = root.QsWindow.window
-    return w && w.screen ? Hyprland.monitorFor(w.screen) : null
+    var name = w && w.screen ? w.screen.name : ""
+    var monitors = Hyprland.monitors.values
+    for (var i = 0; name && i < monitors.length; i++)
+      if (monitors[i].name === name) return monitors[i]
+    return null
   }
 
   readonly property int currentWorkspaceId: {
