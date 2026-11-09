@@ -30,7 +30,7 @@ var DEFAULTS = {
   density: "normal",          // "compact" | "normal" | "roomy"
   pillHeight: 0,              // px; 0 = automatic (bar height minus the usual inset)
   pillPadding: 0,             // px per side inside a pill; 0 = from density
-  activeClick: "none",        // clicking the active pill: "none" | "previous"
+  activeClick: "none",        // clicking the active pill: "none" | "previous" | "layout" (cycle tiling/scrolling/floating)
   activeIconClick: "cycle",   // clicking a focused app: "cycle" | "previous"
   settingsButton: "never",    // gear button: "hover" | "always" | "never"
   previews: true,             // live preview of a workspace on hover
@@ -46,7 +46,8 @@ var DEFAULTS = {
 var SHOW_APPS = ["all", "active", "hover", "hoverOnly"]
 var ICON_STYLES = ["color", "mono"]
 var DENSITIES = ["compact", "normal", "roomy"]
-var ACTIVE_CLICKS = ["none", "previous"]
+var ACTIVE_CLICKS = ["none", "previous", "layout"]
+var LAYOUT_MODES = ["dwindle", "scrolling", "floating"]
 var ACTIVE_ICON_CLICKS = ["cycle", "previous"]
 var SETTINGS_BUTTONS = ["hover", "always", "never"]
 var PREVIEW_SIZES = ["small", "medium", "large"]
@@ -236,10 +237,26 @@ function workspaceIds(occupied, activeIds, persistent, hideEmpty, block) {
   return ids
 }
 
-// Label text for a workspace pill.
-function workspaceLabel(id, focused, style, block) {
+// The layout of a workspace as Omarchy's bar names it. `omarchy-hyprland-workspace-layout-current`
+// prints one of these; anything else is read as the default tiling layout.
+function normalizeLayoutMode(text) {
+  var mode = String(text === undefined || text === null ? "" : text).trim()
+  return LAYOUT_MODES.indexOf(mode) !== -1 ? mode : "dwindle"
+}
+
+// The glyph Omarchy's own bar shows on the focused workspace: a square tiles,
+// a circle scrolls, and a triangle floats.
+function layoutGlyph(mode) {
+  if (mode === "scrolling") return "󰝥"
+  if (mode === "floating") return "󰔶"
+  return "󱓻"
+}
+
+// Label text for a workspace pill. `mode` is the focused workspace's layout and
+// only matters for the "glyph" style on the focused pill.
+function workspaceLabel(id, focused, style, block, mode) {
   if (style === "none") return ""
-  if (style === "glyph" && focused) return "󱓻"
+  if (style === "glyph" && focused) return layoutGlyph(mode)
   var local = block >= 0 && workspaceBlockOf(id) === block
   var number = local ? workspaceSlotOf(id) : id
   return number === 10 ? "0" : String(number)
@@ -838,7 +855,8 @@ if (typeof module !== "undefined") {
     focusedLabel: focusedLabel, webAppHost: webAppHost, webAppKey: webAppKey, chromiumAppKey: chromiumAppKey,
     execUrl: execUrl, webAppEntryIndex: webAppEntryIndex, appIdCandidates: appIdCandidates, iconPathScore: iconPathScore,
     rememberWindowFocus: rememberWindowFocus, iconClickTarget: iconClickTarget,
-    iconNameFromPath: iconNameFromPath, stepWorkspace: stepWorkspace, mergedEntry: mergedEntry,
+    iconNameFromPath: iconNameFromPath, stepWorkspace: stepWorkspace,
+    layoutGlyph: layoutGlyph, normalizeLayoutMode: normalizeLayoutMode, LAYOUT_MODES: LAYOUT_MODES, mergedEntry: mergedEntry,
     fallbackLetter: fallbackLetter
   }
 }

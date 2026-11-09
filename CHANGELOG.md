@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Layout on the focused pill, as in Omarchy's own bar: with the Glyph label
+  the focused workspace shows its layout, a square for tiling, a circle for
+  scrolling and a triangle for floating. It used to show a fixed tiling glyph
+- Clicking the active workspace can cycle its layout: Behaviour → Clicking the
+  active workspace → Cycles layout, the same as Super + L. On another
+  monitor's bar the click focuses that monitor first
+- The bar follows layout changes made elsewhere (Super + L, the Omarchy menu,
+  a config reload). Spaces now answers `omarchy-shell omarchy.workspaces
+  refresh`, which those commands send to the built-in switcher
+
 ## 1.6.0
 
 - Agent logos: a terminal running Claude Code, Codex or Grok shows that

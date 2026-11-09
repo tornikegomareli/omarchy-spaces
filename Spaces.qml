@@ -128,6 +128,7 @@ Panel {
       root.previousWorkspaceId = root.lastWorkspaceId
     root.lastWorkspaceId = root.currentWorkspaceId
     if (root.currentWorkspaceId === root.previewWorkspaceId) root.hidePreview()
+    root.showActiveMode()
   }
 
   // Addresses (normalized) of windows that requested attention and have not
@@ -407,6 +408,7 @@ Panel {
   function clickWorkspace(id) {
     if (id === root.currentWorkspaceId) {
       if (root.cfg.activeClick === "previous" && root.previousWorkspaceId > 0) focusWorkspace(root.previousWorkspaceId)
+      else if (root.cfg.activeClick === "layout") cycleLayout()
       return
     }
     focusWorkspace(id)
@@ -423,6 +425,73 @@ Panel {
     if (!cfg.scrollSwitch || delta === 0) return
     var next = Model.stepWorkspace(root.workspaceIds, root.currentWorkspaceId, delta < 0 ? 1 : -1)
     if (next !== root.currentWorkspaceId) focusWorkspace(next)
+  }
+
+  // ------------------------------------------------------------ layout mode
+
+  // The focused workspace's layout (tiling, scrolling or floating), read the
+  // way Omarchy's own bar reads it: once per workspace and cached, until a
+  // layout command or a config reload says it may have changed.
+  property string activeMode: "dwindle"
+  property var modeCache: ({})
+  property int modeGeneration: 0
+  property int modeProcWorkspace: -1
+  property int modeProcGeneration: 0
+  property bool modeStale: false
+
+  function showActiveMode() {
+    var mode = root.modeCache[root.currentWorkspaceId]
+    if (mode !== undefined) root.activeMode = mode
+    else root.readMode()
+  }
+
+  function readMode() {
+    if (modeProc.running) {
+      root.modeStale = true
+      return
+    }
+    var id = root.currentWorkspaceId
+    if (id <= 0) return
+    root.modeProcWorkspace = id
+    root.modeProcGeneration = root.modeGeneration
+    modeProc.command = ["omarchy-hyprland-workspace-layout-current", String(id)]
+    modeProc.running = true
+  }
+
+  function refreshModes() {
+    root.modeCache = ({})
+    root.modeGeneration++
+    root.readMode()
+  }
+
+  // The layout commands act on the focused workspace, so a click on another
+  // monitor's bar focuses that monitor first.
+  function cycleLayout() {
+    var command = "omarchy-hyprland-workspace-layout-toggle"
+    if (root.monitor && !root.monitor.focused) {
+      command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = " + JSON.stringify(root.monitor.name) + " })")
+        + " >/dev/null && " + command
+    }
+    run(command)
+  }
+
+  Process {
+    id: modeProc
+    stdout: StdioCollector {
+      onStreamFinished: {
+        // A read that started before a refresh may predate the change.
+        if (text.trim() === "" || root.modeProcGeneration !== root.modeGeneration) return
+        var mode = Model.normalizeLayoutMode(text)
+        root.modeCache[root.modeProcWorkspace] = mode
+        if (root.modeProcWorkspace === root.currentWorkspaceId) root.activeMode = mode
+      }
+    }
+    onExited: {
+      if (!root.modeStale) return
+      root.modeStale = false
+      // Deferred: the process still reports running while it signals exit.
+      Qt.callLater(root.showActiveMode)
+    }
   }
 
   function showTip(target, text) {
@@ -442,6 +511,9 @@ Panel {
     target: Hyprland
     function onRawEvent(event) {
       switch (event.name) {
+      case "configreloaded":
+        root.refreshModes()
+        break
       case "urgent":
         root.setUrgent(event.data, true)
         break
@@ -622,6 +694,7 @@ Panel {
     DesktopEntries.applications.values
     iconScan.running = true
     Hyprland.refreshToplevels()
+    root.refreshModes()
   }
 
   // ------------------------------------------------------------ previews
@@ -750,6 +823,20 @@ Panel {
     }
   }
 
+  // Omarchy's layout commands (Super + L, the menu) tell the bar to re-read the
+  // layout with `omarchy-shell omarchy.workspaces refresh`. That target belongs
+  // to the built-in switcher, which is off while Spaces is in use, so answer it
+  // here. One handler serves every monitor's bar, so relay to all of them.
+  IpcHandler {
+    target: "omarchy.workspaces"
+
+    function refresh(): void {
+      var items = root.bar && typeof root.bar.moduleWidgets === "function" ? root.bar.moduleWidgets(root.moduleName) : [root]
+      if (items.indexOf(root) === -1) items = items.concat([root])
+      for (var i = 0; i < items.length; i++) if (items[i] && typeof items[i].refreshModes === "function") items[i].refreshModes()
+    }
+  }
+
   // ------------------------------------------------------------ bar widget
 
   implicitWidth: vertical ? barSize : pillFlow.implicitWidth + trailingGap
@@ -864,7 +951,8 @@ Panel {
             workspaceId,
             active,
             root.numbersVisible ? "number" : root.cfg.labelStyle,
-            root.workspaceBlock
+            root.workspaceBlock,
+            root.activeMode
           )
         }
         readonly property real pad: Model.pillPad(root.cfg.pillPadding, Style.space(label === "" ? 3 : root.metrics.pad))

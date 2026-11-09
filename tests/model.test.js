@@ -211,6 +211,31 @@ test("iconPathScore prefers svg then larger png", () => {
   assert.strictEqual(M.iconNameFromPath("/a/b/zen-browser.png"), "zen-browser")
 })
 
+test("layout glyph follows the workspace layout", () => {
+  const tile = M.layoutGlyph("dwindle"), scroll = M.layoutGlyph("scrolling"), float = M.layoutGlyph("floating")
+  assert.strictEqual(new Set([tile, scroll, float]).size, 3)
+  assert.strictEqual(M.layoutGlyph(undefined), tile)
+  assert.strictEqual(M.layoutGlyph("master"), tile)
+  assert.strictEqual(M.workspaceLabel(3, true, "glyph", -1, "scrolling"), scroll)
+  assert.strictEqual(M.workspaceLabel(3, true, "glyph", -1, "floating"), float)
+  assert.strictEqual(M.workspaceLabel(3, true, "glyph"), tile)
+  assert.strictEqual(M.workspaceLabel(3, false, "glyph", -1, "floating"), "3")
+  assert.strictEqual(M.workspaceLabel(3, true, "number", -1, "floating"), "3")
+})
+
+test("normalizeLayoutMode accepts only the three layouts", () => {
+  assert.strictEqual(M.normalizeLayoutMode("scrolling\n"), "scrolling")
+  assert.strictEqual(M.normalizeLayoutMode(" floating "), "floating")
+  assert.strictEqual(M.normalizeLayoutMode(""), "dwindle")
+  assert.strictEqual(M.normalizeLayoutMode(null), "dwindle")
+  assert.strictEqual(M.normalizeLayoutMode("<img src=x>"), "dwindle")
+})
+
+test("activeClick accepts layout and rejects junk", () => {
+  assert.strictEqual(M.resolveSettings({ activeClick: "layout" }).activeClick, "layout")
+  assert.strictEqual(M.resolveSettings({ activeClick: "cycle" }).activeClick, "none")
+})
+
 test("stepWorkspace wraps", () => {
   assert.strictEqual(M.stepWorkspace([1, 2, 5], 5, 1), 1)
   assert.strictEqual(M.stepWorkspace([1, 2, 5], 1, -1), 5)

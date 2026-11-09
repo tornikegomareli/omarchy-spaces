@@ -351,7 +351,8 @@ Item {
             key: "activeClick"
             options: [
               { value: "none", label: "Does nothing" },
-              { value: "previous", label: "Goes back" }
+              { value: "previous", label: "Goes back" },
+              { value: "layout", label: "Cycles layout" }
             ]
           }
 

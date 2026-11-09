@@ -18,6 +18,18 @@ Previews follow the monitor's orientation, including portrait displays, and shri
   <img src=".github/assets/film-preview.png" width="100%" alt="Hovering workspace 2 opens a live preview with omarchy.org and Neovim side by side" />
 </p>
 
+## Layout, like the default bar
+
+With the **Glyph** label (Settings → Appearance → Workspace label) the focused
+workspace shows its layout instead of its number: a square for tiling, a circle
+for scrolling and a triangle for floating.
+
+Set Behaviour → *Clicking the active workspace* to **Cycles layout** and a click
+on the focused pill steps it through the layouts, the same as Super + L. Layout
+changes made from the keyboard or the Omarchy menu show up too: Spaces answers
+`omarchy-shell omarchy.workspaces refresh`, the signal those commands send. If
+you turn the built-in switcher back on, it answers that signal instead.
+
 ## Know when your agent needs you
 
 Terminals running Claude Code get a badge: a spinner while the agent works, a pulsing `!` when it needs your input, and a check mark when it is done. A workspace with an agent waiting on you pulses too. If a reporting process dies without sending `end`, the bar clears its live badge after the next process check, normally within a minute.

@@ -172,7 +172,8 @@
         "label": "Clicking the active workspace",
         "options": [
           "none",
-          "previous"
+          "previous",
+          "layout"
         ],
         "default": "none"
       },
