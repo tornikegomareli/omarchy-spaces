@@ -273,7 +273,8 @@ var TERMINAL_APP_IDS = [
   "wezterm", "org.wezfurlong.wezterm", "org.gnome.terminal",
   "gnome-terminal", "gnome-terminal-server", "org.gnome.console", "kgx",
   "konsole", "org.kde.konsole", "xterm", "uxterm", "urxvt",
-  "st", "st-256color", "xfce4-terminal", "tilix", "com.gexperts.tilix"
+  "st", "st-256color", "xfce4-terminal", "tilix", "com.gexperts.tilix",
+  "org.omarchy.agent"
 ]
 
 var AGENTS = [

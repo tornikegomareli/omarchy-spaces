@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Agent logos now show on Omarchy's agent terminal (`org.omarchy.agent`), which
+  was missing from the list of terminal windows that get checked
+
 ## 1.6.0
 
 - Agent logos: a terminal running Claude Code, Codex or Grok shows that
