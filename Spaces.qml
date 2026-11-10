@@ -554,7 +554,10 @@ Panel {
     }
     var source = iconUrl(entry && entry.icon ? entry.icon : appId)
     if (source === "" && key !== appId) source = iconUrl(key)
-    var info = { source: source, name: entry && entry.name ? String(entry.name) : String(appId || "") }
+    // "nameless": no desktop entry names this app, so `name` is the raw class
+    // (e.g. Omarchy's "TUI.tile" shared by every terminal app).
+    var nameless = !(entry && entry.name)
+    var info = { source: source, name: nameless ? String(appId || "") : String(entry.name), nameless: nameless }
     root.iconCache[cacheKey] = info
     return info
   }
@@ -997,7 +1000,7 @@ Panel {
                   readonly property bool focusedHere: !!item && item.focused && pill.active
                   readonly property bool highlightFocused: focusedHere && pill.itemKeys.length > 1
                   readonly property string titleText: root.cfg.focusedTitle && focusedHere && !root.vertical
-                    ? Model.focusedLabel(item, info.name, root.cfg.titleLength) : ""
+                    ? Model.focusedLabel(item, info.nameless && item.title ? "" : info.name, root.cfg.titleLength) : ""
                   readonly property bool hovered: iconMouse.containsMouse
                   readonly property string agentState: item ? root.agentStateFor(item.addresses) : ""
 

@@ -115,6 +115,8 @@ test("focusedLabel uses app name for single window, title for many", () => {
   assert.strictEqual(M.focusedLabel({ focused: true, count: 1, title: "t" }, "Foot", 20), "Foot")
   assert.strictEqual(M.focusedLabel({ focused: true, count: 2, title: "long title here" }, "Foot", 6), "long …")
   assert.strictEqual(M.focusedLabel({ focused: false, count: 1 }, "Foot", 20), "")
+  // No app name (class has no desktop entry): show the window title.
+  assert.strictEqual(M.focusedLabel({ focused: true, count: 1, title: "Z13P: Work" }, "", 20), "Z13P: Work")
 })
 
 test("truncate keeps ASCII behaviour unchanged", () => {
