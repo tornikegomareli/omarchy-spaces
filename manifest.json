@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "tornikegomareli.spaces",
   "name": "Spaces",
-  "version": "1.4.0",
+  "version": "1.6.0",
   "author": "Tornike Gomareli",
   "description": "Workspace switcher that shows the apps open on each workspace",
   "kinds": [
@@ -189,6 +189,13 @@
         "default": false
       },
       {
+        "key": "activeIconClick",
+        "type": "enum",
+        "label": "Clicking the focused app icon",
+        "options": ["cycle", "previous"],
+        "default": "cycle"
+      },
+      {
         "key": "urgentHighlight",
         "type": "bool",
         "label": "Highlight urgent windows",
@@ -210,6 +217,22 @@
           "roomy"
         ],
         "default": "normal"
+      },
+      {
+        "key": "pillHeight",
+        "type": "int",
+        "label": "Pill height",
+        "min": 0,
+        "max": 64,
+        "default": 0
+      },
+      {
+        "key": "pillPadding",
+        "type": "int",
+        "label": "Pill padding",
+        "min": 0,
+        "max": 24,
+        "default": 0
       },
       {
         "key": "settingsButton",
@@ -250,6 +273,78 @@
         "type": "bool",
         "label": "Agent status",
         "default": true
+      },
+      {
+        "key": "agentIcons",
+        "type": "bool",
+        "label": "Agent icons",
+        "default": true
+      },
+      {
+        "key": "activeIcon",
+        "type": "string",
+        "label": "Active workspace icon (empty = off)",
+        "default": ""
+      },
+      {
+        "key": "wsIcon1",
+        "type": "string",
+        "label": "Workspace 1 icon (empty = number)",
+        "default": ""
+      },
+      {
+        "key": "wsIcon2",
+        "type": "string",
+        "label": "Workspace 2 icon (empty = number)",
+        "default": ""
+      },
+      {
+        "key": "wsIcon3",
+        "type": "string",
+        "label": "Workspace 3 icon (empty = number)",
+        "default": ""
+      },
+      {
+        "key": "wsIcon4",
+        "type": "string",
+        "label": "Workspace 4 icon (empty = number)",
+        "default": ""
+      },
+      {
+        "key": "wsIcon5",
+        "type": "string",
+        "label": "Workspace 5 icon (empty = number)",
+        "default": ""
+      },
+      {
+        "key": "wsIcon6",
+        "type": "string",
+        "label": "Workspace 6 icon (empty = number)",
+        "default": ""
+      },
+      {
+        "key": "wsIcon7",
+        "type": "string",
+        "label": "Workspace 7 icon (empty = number)",
+        "default": ""
+      },
+      {
+        "key": "wsIcon8",
+        "type": "string",
+        "label": "Workspace 8 icon (empty = number)",
+        "default": ""
+      },
+      {
+        "key": "wsIcon9",
+        "type": "string",
+        "label": "Workspace 9 icon (empty = number)",
+        "default": ""
+      },
+      {
+        "key": "wsIcon10",
+        "type": "string",
+        "label": "Workspace 10 icon (empty = number)",
+        "default": ""
       }
     ]
   }

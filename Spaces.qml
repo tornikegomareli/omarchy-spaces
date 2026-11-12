@@ -52,10 +52,12 @@ Panel {
   readonly property int barSize: bar ? bar.barSize : Style.bar.sizeHorizontal
   readonly property color fg: bar ? bar.barForeground : Color.foreground
   readonly property color bg: bar ? bar.background : Color.background
+  // White agent marks swap to their dark twin on a light bar.
+  readonly property bool lightBar: 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b >= 0.5
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-  readonly property int pillThickness: Math.max(16, barSize - Style.space(6))
+  readonly property int pillThickness: Model.pillThickness(barSize, cfg.pillHeight, Style.space(Model.PILL_LIMITS.autoInset))
   readonly property int iconPx: Math.min(cfg.iconSize, pillThickness - Style.space(4))
-  readonly property int pillRadius: Style.cornerRadius > 0 ? Math.round(pillThickness * 0.32) : 0
+  readonly property int pillRadius: Model.pillRadius(pillThickness, Style.cornerRadius > 0)
   readonly property int dur: Model.durationFor(cfg, 280)
   readonly property int fastDur: Model.durationFor(cfg, 160)
   readonly property real trailingGap: vertical ? 0 : Style.spaceReal(1.5)
@@ -88,9 +90,38 @@ Panel {
     return Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
   }
 
+  // Omarchy 4.5 assigns each monitor a block of ten global workspace IDs.
+  // Only opt in when its state file identifies this monitor; older setups
+  // and the all-monitor view keep their existing global numbering.
+  property var workspaceBlocks: ({})
+  readonly property int workspaceBlock: Model.monitorWorkspaceBlock(
+    root.workspaceBlocks, root.monitor ? root.monitor.name : "", cfg.perMonitor)
+
+  FileView {
+    path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/monitor-workspaces"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoadFailed: root.workspaceBlocks = Model.parseWorkspaceBlocks("")
+    onLoaded: root.workspaceBlocks = Model.parseWorkspaceBlocks(text())
+  }
+
   // Workspace focused before the current one, for "click active = go back".
   property int previousWorkspaceId: -1
   property int lastWorkspaceId: -1
+
+  property var windowFocusHistory: []
+
+  function liveWindowAddresses() {
+    return Hyprland.toplevels.values.map(function(toplevel) {
+      return Model.normalizeAddress(toplevel.address)
+    })
+  }
+
+  function rememberFocusedWindow() {
+    root.windowFocusHistory = Model.rememberWindowFocus(
+      root.windowFocusHistory, root.activeWindowAddress(), root.liveWindowAddresses())
+  }
 
   onCurrentWorkspaceIdChanged: {
     if (root.lastWorkspaceId > 0 && root.lastWorkspaceId !== root.currentWorkspaceId)
@@ -278,7 +309,10 @@ Panel {
 
   Connections {
     target: Hyprland
-    function onActiveToplevelChanged() { Qt.callLater(root.acknowledgeAgents) }
+    function onActiveToplevelChanged() {
+      root.rememberFocusedWindow()
+      Qt.callLater(root.acknowledgeAgents)
+    }
   }
 
   Process {
@@ -321,7 +355,7 @@ Panel {
         var ipc = tl.lastIpcObject || {}
         windows.push({
           address: String(tl.address),
-          appId: root.appIdOf(tl),
+          appId: root.cfg.agentIcons ? Model.agentAppId(root.appIdOf(tl), tl.title) : root.appIdOf(tl),
           title: String(tl.title || ""),
           focused: activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
           at: ipc.at && ipc.at.length === 2 ? [ipc.at[0], ipc.at[1]] : null,
@@ -346,10 +380,15 @@ Panel {
     var occupied = ({})
     for (var id in workspaceMap) occupied[id] = workspaceMap[id].windows.length
     var active = root.currentWorkspaceId > 0 ? [root.currentWorkspaceId] : []
-    return Model.workspaceIds(occupied, active, cfg.persistentWorkspaces, cfg.hideEmpty)
+    return Model.workspaceIds(occupied, active, cfg.persistentWorkspaces, cfg.hideEmpty, root.workspaceBlock)
   }
 
   function focusWorkspace(id) {
+    if (root.workspaceBlock >= 0 && Model.workspaceBlockOf(id) === root.workspaceBlock) {
+      var expression = "o.workspaces.focus(" + Model.workspaceSlotOf(id) + ", " + JSON.stringify(root.monitor.name) + ")"
+      run("hyprctl dispatch " + Util.shellQuote(expression))
+      return
+    }
     run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ workspace = \"" + id + "\" })"))
   }
 
@@ -374,13 +413,10 @@ Panel {
   }
 
   function activateItem(item) {
-    // A grouped icon that is already focused cycles through its windows.
-    if (item.focused && item.addresses.length > 1) {
-      var idx = item.addresses.indexOf(item.address)
-      focusWindow(item.addresses[(idx + 1) % item.addresses.length])
-    } else {
-      focusWindow(item.address)
-    }
+    root.rememberFocusedWindow()
+    var target = Model.iconClickTarget(item, root.cfg.activeIconClick,
+      root.windowFocusHistory, root.liveWindowAddresses())
+    if (target) focusWindow(target)
   }
 
   function scrollBy(delta) {
@@ -480,14 +516,14 @@ Panel {
     var entry = DesktopEntries.heuristicLookup(appId)
     if (entry) return entry
 
+    // Web apps: match the window's host and path, not the host alone, so
+    // apps sharing a host keep their own entries.
+    if (Model.webAppKey(appId) === "") return null
     var apps = DesktopEntries.applications.values
-    var host = Model.webAppHost(appId)
-    if (host === "") return null
-    for (var i = 0; i < apps.length; i++) {
-      var exec = String(apps[i].execString || "")
-      if (exec.indexOf("//" + host) !== -1) return apps[i]
-    }
-    return null
+    var execs = []
+    for (var i = 0; i < apps.length; i++) execs.push(String(apps[i].execString || ""))
+    var index = Model.webAppEntryIndex(appId, execs)
+    return index >= 0 ? apps[index] : null
   }
 
   function iconUrl(name) {
@@ -506,6 +542,8 @@ Panel {
   // e.g. "Omamail" is omamail.desktop, so the window keeps its own icon.
   function appInfo(appId, title) {
     root.iconRevision
+    var agent = Model.agentFor(appId)
+    if (agent) return { source: Qt.resolvedUrl("assets/" + agent.icon + (agent.light && root.lightBar ? "-light" : "") + ".svg"), name: agent.name }
     var key = Model.appKey(appId)
     var label = String(title || "")
     // A plain Chromium window shows its active tab's favicon when chromiumFavicons is enabled.
@@ -615,7 +653,18 @@ Panel {
     onExited: {
       root.iconIndex = root.pendingIconIndex
       root.invalidateIcons()
+      // Deferred so the process has fully stopped before it is started again.
+      if (root.iconRescanPending) Qt.callLater(root.rescanIcons)
     }
+  }
+
+  // A scan already running may have passed the directory a new icon landed
+  // in, so a request during one queues another for when it exits.
+  property bool iconRescanPending: false
+
+  function rescanIcons() {
+    root.iconRescanPending = iconScan.running
+    if (!iconScan.running) iconScan.running = true
   }
 
   Connections {
@@ -626,10 +675,14 @@ Panel {
   Timer {
     id: iconDebounce
     interval: 1500
-    onTriggered: root.invalidateIcons()
+    // New entries usually bring their icons, e.g. `omarchy webapp install`
+    // saves one under ~/.local/share/icons, a directory that may not have
+    // existed at startup. The scan invalidates the cache when it exits.
+    onTriggered: root.rescanIcons()
   }
 
   Component.onCompleted: {
+    root.rememberFocusedWindow()
     // Touching the list starts Quickshell's desktop-entry scan.
     DesktopEntries.applications.values
     iconScan.running = true
@@ -868,12 +921,19 @@ Panel {
         }
         readonly property var itemKeys: iconData.items.map(function(item) { return item.key })
         readonly property color textColor: active ? root.activeText() : root.fg
-        readonly property string label: Model.workspaceLabel(
-          workspaceId,
-          active,
-          root.numbersVisible ? "number" : root.cfg.labelStyle
-        )
-        readonly property real pad: Style.space(label === "" ? 3 : root.metrics.pad)
+        // Custom icon first; the pill keeps its number/glyph label when none
+        // is set. Held Super always shows plain numbers.
+        readonly property string label: {
+          var custom = Model.workspaceIcon(root.cfg, workspaceId, active)
+          if (custom !== "" && !root.numbersVisible) return custom
+          return Model.workspaceLabel(
+            workspaceId,
+            active,
+            root.numbersVisible ? "number" : root.cfg.labelStyle,
+            root.workspaceBlock
+          )
+        }
+        readonly property real pad: Model.pillPad(root.cfg.pillPadding, Style.space(label === "" ? 3 : root.metrics.pad))
 
         // Appear animation lives on the delegate: positioner add transitions
         // can be interrupted and leave items stuck half faded. No binding on
@@ -959,6 +1019,7 @@ Panel {
           Text {
             visible: pill.label !== ""
             text: pill.label
+            textFormat: Text.PlainText
             color: pill.textColor
             opacity: pill.occupied || pill.active ? 1 : 0.5
             font.family: root.fontFamily

@@ -1,6 +1,8 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
 // Kept separate from the workspace widget so the form can be previewed in isolation.
 Item {
@@ -14,6 +16,14 @@ Item {
   signal settingChanged(var delta)
   signal resetRequested()
   signal closeRequested()
+
+  // Same geometry the widget renders, so the pill-size preview and the "Auto"
+  // labels show the real numbers instead of a second opinion.
+  readonly property int barHeight: bar ? bar.barSize : Style.bar.sizeHorizontal
+  readonly property int autoPillHeight: Model.pillThickness(barHeight, 0, Style.space(Model.PILL_LIMITS.autoInset))
+  readonly property int autoPillPad: Style.space(Model.densityMetrics(cfg ? cfg.density : "normal").pad)
+  readonly property int pillHeight: Model.pillThickness(barHeight, cfg ? cfg.pillHeight : 0, Style.space(Model.PILL_LIMITS.autoInset))
+  readonly property real pillPad: Model.pillPad(cfg ? cfg.pillPadding : 0, autoPillPad)
 
   function applySetting(delta) { settingChanged(delta) }
   implicitHeight: header.implicitHeight + Math.max(navigation.implicitHeight, form.implicitHeight)
@@ -135,6 +145,7 @@ Item {
           SliderSetting { visible: root.cfg.showIcons && root.cfg.focusedTitle; title: "TITLE LENGTH"; key: "titleLength"; minimum: 8; maximum: 60; suffix: " characters" }
           ToggleSetting { visible: root.cfg.showIcons; label: "Chromium tab favicons"; description: "Opt in to reading Chromium's history and favicon files for browser tab icons"; key: "chromiumFavicons" }
           ToggleSetting { visible: root.cfg.showIcons; label: "Agent status"; description: "Badges on terminals running coding agents"; key: "agentStatus" }
+          ToggleSetting { visible: root.cfg.showIcons; label: "Agent icons"; description: "Claude, Codex and Grok logos on terminals running them"; key: "agentIcons" }
 
         ToggleSetting { label: "Highlight urgent windows"; description: "Pulse workspaces asking for attention"; key: "urgentHighlight" }
         ToggleSetting { label: "Tooltips"; description: "Window titles on hover"; key: "tooltips" }
@@ -156,26 +167,112 @@ Item {
             ]
           }
 
-          ToggleSetting {
-            label: "Pill background"
-            description: "Fill behind occupied and hovered workspaces"
-            key: "pillBackground"
-          }
-
-          ToggleSetting {
-            label: "Pill border"
-            description: "Outline around a workspace's number and icons, so they read as one box"
-            key: "pillBorder"
-          }
-
           ChoiceSetting {
             title: "WORKSPACE LABEL"
             key: "labelStyle"
             options: [
               { value: "number", label: "Number" },
               { value: "glyph", label: "Glyph" },
+              { value: "custom", label: "Custom" },
               { value: "none", label: "None" }
             ]
+          }
+
+          // ---- Workspace icons (label style "custom")
+          Column {
+            width: parent.width
+            spacing: Style.space(12)
+            visible: root.cfg.labelStyle === "custom"
+
+            Text {
+              width: parent.width
+              wrapMode: Text.WordWrap
+              text: "Emoji or Nerd Font glyphs work. An empty field shows the workspace number."
+              color: root.fg
+              opacity: 0.7
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            // Bounded scroll area: ten workspaces must not push the rest of
+            // the form (or the footer) off the panel.
+            Item {
+              width: parent.width
+              height: Math.min(iconFields.implicitHeight, Style.space(300))
+
+              ScrollView {
+                id: iconScroll
+                anchors.fill: parent
+                clip: true
+                contentWidth: availableWidth
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: iconFields.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+
+                Column {
+                  id: iconFields
+                  width: iconScroll.availableWidth
+                  spacing: Style.space(12)
+
+                  TextSetting { title: "ACTIVE WORKSPACE"; key: "activeIcon" }
+
+                  Repeater {
+                    model: Math.max(0, root.cfg.persistentWorkspaces)
+                    delegate: TextSetting {
+                      required property int index
+                      title: "WORKSPACE " + (index + 1)
+                      key: "wsIcon" + (index + 1)
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // ---- Pill size: the two pixel settings plus the pill fill. The heading
+          // is the same small-caps label as every other group, and the group keeps
+          // the 8 px heading-to-content gap the other settings use.
+          Column {
+            width: parent.width
+            spacing: Style.space(8)
+
+            PanelSectionHeader {
+              text: "PILL SIZE"
+              foreground: root.fg
+              fontFamily: root.fontFamily
+            }
+
+            PillPreview { }
+
+            PillSizeSetting {
+              title: "PILL HEIGHT"
+              key: "pillHeight"
+              maximum: Math.min(Model.PILL_LIMITS.heightMax, Math.max(Model.PILL_LIMITS.heightMin, root.barHeight))
+              floor: Model.PILL_LIMITS.heightMin
+              shownValue: root.pillHeight
+              autoValue: root.autoPillHeight
+              hint: Model.PILL_LIMITS.heightMin + " px min, bar height max."
+            }
+
+            PillSizeSetting {
+              title: "PILL PADDING"
+              key: "pillPadding"
+              maximum: Model.PILL_LIMITS.paddingMax
+              shownValue: Math.round(root.pillPad)
+              autoValue: root.autoPillPad
+              hint: "Same on both sides."
+            }
+
+            ToggleSetting {
+              label: "Pill background"
+              description: "Fill behind occupied and hovered workspaces"
+              key: "pillBackground"
+            }
+
+            ToggleSetting {
+              label: "Pill border"
+              description: "Outline around a workspace's number and icons, so they read as one box"
+              key: "pillBorder"
+            }
           }
 
           ChoiceSetting {
@@ -265,6 +362,14 @@ Item {
             ]
           }
 
+          ChoiceSetting {
+            title: "CLICKING THE FOCUSED APP ICON"
+            key: "activeIconClick"
+            options: [
+              { value: "cycle", label: "Cycles windows" },
+              { value: "previous", label: "Previous window" }
+            ]
+          }
           ToggleSetting { label: "Scroll to switch workspaces"; key: "scrollSwitch" }
           ToggleSetting { label: "Middle-click icon closes window"; key: "middleClickClose" }
 
@@ -449,6 +554,240 @@ Item {
       var delta = ({})
       delta[key] = !checked
       root.applySetting(delta)
+    }
+  }
+
+  // A slice of the real bar: a few pills with the real labels, the active one
+  // filled and every pill at the chosen height and padding.
+  component PillPreview: Item {
+    id: preview
+
+    function label(id, active) {
+      var custom = Model.workspaceIcon(root.cfg, id, active)
+      if (custom !== "") return custom
+      return Model.workspaceLabel(id, active, root.cfg.labelStyle, -1)
+    }
+
+    width: parent ? parent.width : 0
+    implicitHeight: Math.max(root.barHeight, Style.space(20))
+
+    Rectangle {
+      anchors.fill: parent
+      radius: Style.cornerRadius
+      color: root.bar ? root.bar.background : Util.alpha(root.fg, 0.07)
+      border.color: Util.alpha(root.fg, 0.22)
+      border.width: Math.max(1, Style.space(1))
+    }
+
+    Row {
+      anchors.left: parent.left
+      anchors.leftMargin: Style.space(8)
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: Style.space(Model.pillGap(root.cfg.density))
+
+      Repeater {
+        model: 5
+        delegate: Rectangle {
+          required property int index
+          readonly property int workspaceId: index + 1
+          readonly property bool active: workspaceId === 3
+          readonly property string pillLabel: preview.label(workspaceId, active)
+
+          height: root.pillHeight
+          width: labelText.implicitWidth + root.pillPad * 2
+          radius: Model.pillRadius(height, Style.cornerRadius > 0)
+          color: active ? Util.alpha(root.fg, 0.18) : "transparent"
+
+          Behavior on height { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+          Behavior on width { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+          Text {
+            id: labelText
+            anchors.centerIn: parent
+            text: parent.pillLabel
+            color: root.fg
+            opacity: parent.active ? 1 : 0.5
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            font.bold: parent.active
+          }
+        }
+      }
+    }
+  }
+
+  // One pixel size: value with unit, slider, -/+ buttons, and "Auto" under the
+  // slider start. 0 means automatic and the header shows the resulting pixels.
+  component PillSizeSetting: Column {
+    id: pillSetting
+    property string title: ""
+    property string key: ""
+    property string hint: ""
+    property int autoValue: 0
+    // Pixels the widget actually renders, so the header never lies.
+    property int shownValue: 0
+    property int maximum: 24
+    // Smallest usable explicit value; 0 always means automatic.
+    property int floor: 1
+
+    readonly property int current: Number(root.cfg[pillSetting.key]) || 0
+
+    width: parent ? parent.width : 0
+    spacing: Style.space(6)
+
+    function commit(value) {
+      var next = Math.round(value)
+      if (next > 0 && next < pillSetting.floor) next = pillSetting.floor
+      var delta = ({})
+      delta[pillSetting.key] = Math.max(0, Math.min(pillSetting.maximum, next))
+      root.applySetting(delta)
+    }
+    // Stepping away from Auto starts at the value the bar already shows, and
+    // stepping below the floor goes back to Auto.
+    function step(delta) {
+      var base = pillSetting.current > 0 ? pillSetting.current : pillSetting.autoValue
+      var next = base + delta
+      if (next < pillSetting.floor) next = 0
+      pillSetting.commit(next)
+    }
+    // A drag reports the same integer while the pointer stays inside one step,
+    // so only a changed value is written; the bar and the preview follow it.
+    function follow(value) {
+      if (Math.round(value) !== pillSetting.current) pillSetting.commit(value)
+    }
+
+    Item {
+      width: parent.width
+      implicitHeight: pillHeader.implicitHeight
+      PanelSectionHeader {
+        id: pillHeader
+        text: pillSetting.title
+        foreground: root.fg
+        fontFamily: root.fontFamily
+      }
+      Text {
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        text: pillSetting.shownValue + " px"
+        color: root.fg
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        font.bold: true
+      }
+    }
+
+    Item {
+      width: parent.width
+      implicitHeight: pillSlider.implicitHeight
+
+      Button {
+        id: pillMinus
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        width: Style.space(26)
+        text: "\u2212"
+        foreground: root.fg
+        fontFamily: root.fontFamily
+        fontSize: Style.font.body
+        bordered: true
+        focusable: true
+        enabled: pillSetting.current > 0
+        opacity: enabled ? 1 : 0.35
+        onClicked: pillSetting.step(-1)
+      }
+      Button {
+        id: pillPlus
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        width: Style.space(26)
+        text: "+"
+        foreground: root.fg
+        fontFamily: root.fontFamily
+        fontSize: Style.font.body
+        bordered: true
+        focusable: true
+        enabled: pillSetting.current < pillSetting.maximum
+        opacity: enabled ? 1 : 0.35
+        onClicked: pillSetting.step(1)
+      }
+      PanelSlider {
+        id: pillSlider
+        activeFocusOnTab: true
+        Keys.onLeftPressed: released(Math.max(minimum, value - 1))
+        Keys.onRightPressed: released(Math.min(maximum, value + 1))
+        Keys.onPressed: function(event) {
+          if (event.key === Qt.Key_Home) { released(minimum); event.accepted = true }
+          else if (event.key === Qt.Key_End) { released(maximum); event.accepted = true }
+        }
+        anchors.left: pillMinus.right
+        anchors.right: pillPlus.left
+        anchors.leftMargin: Style.space(8)
+        anchors.rightMargin: Style.space(8)
+        anchors.verticalCenter: parent.verticalCenter
+        bar: root.bar
+        minimum: 0
+        maximum: pillSetting.maximum
+        step: 1
+        integer: true
+        value: pillSetting.current
+        onMoved: function(value) { pillSetting.follow(value) }
+        onReleased: function(value) { pillSetting.commit(value) }
+      }
+    }
+
+    // "Auto" marks the left end of the track; the hint sits beside it so the
+    // control stays three rows tall.
+    Item {
+      width: parent.width
+      implicitHeight: autoLabel.implicitHeight
+
+      Text {
+        id: autoLabel
+        x: Style.space(26) + Style.space(8)
+        text: "Auto"
+        color: root.fg
+        opacity: 0.6
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+      Text {
+        anchors.right: parent.right
+        anchors.verticalCenter: autoLabel.verticalCenter
+        text: pillSetting.hint
+        color: root.fg
+        opacity: 0.7
+        elide: Text.ElideRight
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+    }
+  }
+
+
+
+  component TextSetting: Column {
+    property string title: ""
+    property string key: ""
+
+    width: parent ? parent.width : 0
+    spacing: Style.space(8)
+
+    PanelSectionHeader {
+      text: parent.title
+      foreground: root.fg
+      fontFamily: root.fontFamily
+    }
+
+    TextField {
+      width: parent.width
+      activeFocusOnTab: true
+      foreground: root.fg
+      text: root.cfg[key] || ""
+      onEditingFinished: {
+        var delta = ({})
+        delta[key] = text
+        root.applySetting(delta)
+      }
     }
   }
 }

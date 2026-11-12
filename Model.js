@@ -19,7 +19,7 @@ var DEFAULTS = {
   activeStyle: "subtle",      // "subtle" | "solid" | "accent"
   pillBackground: true,       // quiet fill behind occupied/hovered pills
   pillBorder: false,          // outline around each pill that shows its icons, grouping number + icons
-  labelStyle: "number",       // "number" | "glyph" | "none"
+  labelStyle: "number",       // "number" | "glyph" | "none" | "custom"
   holdSuperNumbers: false,    // show workspace numbers while Super is held (needs bindings)
   animations: true,
   animationSpeed: "normal",   // "slow" | "normal" | "fast"
@@ -29,23 +29,31 @@ var DEFAULTS = {
   middleClickClose: false,    // middle-click an icon closes that window
   tooltips: true,
   density: "normal",          // "compact" | "normal" | "roomy"
+  pillHeight: 0,              // px; 0 = automatic (bar height minus the usual inset)
+  pillPadding: 0,             // px per side inside a pill; 0 = from density
   activeClick: "none",        // clicking the active pill: "none" | "previous"
+  activeIconClick: "cycle",   // clicking a focused app: "cycle" | "previous"
   settingsButton: "never",    // gear button: "hover" | "always" | "never"
   previews: true,             // live preview of a workspace on hover
   previewSize: "medium",      // "small" | "medium" | "large"
   previewLive: true,          // keep previews streaming; false = one frame
   agentStatus: true,          // badges for coding agents running in terminals
-  chromiumFavicons: false     // plain Chromium windows show their active tab's favicon (reads Chromium's history/favicon files)
+  chromiumFavicons: false,    // plain Chromium windows show their active tab's favicon (reads Chromium's history/favicon files)
+  agentIcons: true,
+  activeIcon: "",             // replaces the focused pill's label; empty = off
+  wsIcon1: "", wsIcon2: "", wsIcon3: "", wsIcon4: "", wsIcon5: "",
+  wsIcon6: "", wsIcon7: "", wsIcon8: "", wsIcon9: "", wsIcon10: ""  // per-workspace labels; empty = number
 }
 
 var SHOW_APPS = ["all", "active", "hover", "hoverOnly"]
 var ICON_STYLES = ["color", "mono"]
 var DENSITIES = ["compact", "normal", "roomy"]
 var ACTIVE_CLICKS = ["none", "previous"]
+var ACTIVE_ICON_CLICKS = ["cycle", "previous"]
 var SETTINGS_BUTTONS = ["hover", "always", "never"]
 var PREVIEW_SIZES = ["small", "medium", "large"]
 var ACTIVE_STYLES = ["subtle", "solid", "accent"]
-var LABEL_STYLES = ["number", "glyph", "none"]
+var LABEL_STYLES = ["number", "glyph", "none", "custom"]
 var SPEEDS = ["slow", "normal", "fast"]
 
 function clampInt(value, min, max, fallback) {
@@ -91,13 +99,28 @@ function resolveSettings(raw) {
     middleClickClose: bool(s.middleClickClose, d.middleClickClose),
     tooltips: bool(s.tooltips, d.tooltips),
     density: oneOf(s.density, DENSITIES, d.density),
+    pillHeight: clampInt(s.pillHeight, 0, PILL_LIMITS.heightMax, d.pillHeight),
+    pillPadding: clampInt(s.pillPadding, 0, PILL_LIMITS.paddingMax, d.pillPadding),
     activeClick: oneOf(s.activeClick, ACTIVE_CLICKS, d.activeClick),
+    activeIconClick: oneOf(s.activeIconClick, ACTIVE_ICON_CLICKS, d.activeIconClick),
     settingsButton: oneOf(s.settingsButton, SETTINGS_BUTTONS, d.settingsButton),
     previews: bool(s.previews, d.previews),
     previewSize: oneOf(s.previewSize, PREVIEW_SIZES, d.previewSize),
     previewLive: bool(s.previewLive, d.previewLive),
     agentStatus: bool(s.agentStatus, d.agentStatus),
-    chromiumFavicons: bool(s.chromiumFavicons, d.chromiumFavicons)
+    chromiumFavicons: bool(s.chromiumFavicons, d.chromiumFavicons),
+    agentIcons: bool(s.agentIcons, d.agentIcons),
+    activeIcon: clipIconString(s.activeIcon, d.activeIcon),
+    wsIcon1: clipIconString(s.wsIcon1, d.wsIcon1),
+    wsIcon2: clipIconString(s.wsIcon2, d.wsIcon2),
+    wsIcon3: clipIconString(s.wsIcon3, d.wsIcon3),
+    wsIcon4: clipIconString(s.wsIcon4, d.wsIcon4),
+    wsIcon5: clipIconString(s.wsIcon5, d.wsIcon5),
+    wsIcon6: clipIconString(s.wsIcon6, d.wsIcon6),
+    wsIcon7: clipIconString(s.wsIcon7, d.wsIcon7),
+    wsIcon8: clipIconString(s.wsIcon8, d.wsIcon8),
+    wsIcon9: clipIconString(s.wsIcon9, d.wsIcon9),
+    wsIcon10: clipIconString(s.wsIcon10, d.wsIcon10)
   }
 }
 
@@ -125,36 +148,157 @@ function densityMetrics(density) {
   return { gap: 4, pad: 7, iconGap: 3 }
 }
 
+// Pill limits, in unscaled px, stated once: the widget, the settings panel and
+// the clamps below all read them from here. manifest.json has to repeat the
+// numbers because its schema takes literals, not references.
+var PILL_LIMITS = {
+  heightMin: 8,       // smallest explicit pill; the bar still wins on a shorter bar
+  heightMax: 64,      // tallest pill the setting stores
+  paddingMax: 24,
+  autoFloor: 16,      // floor for the automatic height
+  autoInset: 6,       // bar edge to an automatic pill, before the spacing scale
+  radiusRatio: 0.32   // corner radius as a fraction of the height
+}
+
+// Pill height. 0 keeps the automatic size (bar height minus the spacing inset);
+// a positive pillHeight is used as is, floored at the minimum and never taller
+// than the bar, so a bar shorter than the floor still caps the pill.
+function pillThickness(barSize, pillHeight, inset) {
+  if (pillHeight > 0) return Math.min(Math.max(pillHeight, PILL_LIMITS.heightMin), barSize)
+  return Math.max(PILL_LIMITS.autoFloor, barSize - inset)
+}
+
+// Corner radius for a pill of `thickness`, or 0 when the theme is square.
+function pillRadius(thickness, rounded) {
+  return rounded ? Math.round(thickness * PILL_LIMITS.radiusRatio) : 0
+}
+
+// Gap between pills, so the settings preview uses the widget's spacing.
+function pillGap(density) {
+  return densityMetrics(density).gap
+}
+
+// Horizontal padding inside a pill: an explicit pillPadding wins over density.
+function pillPad(pillPadding, autoPad) {
+  return pillPadding > 0 ? pillPadding : autoPad
+}
+
 // Hyprland reports addresses with or without the 0x prefix depending on source.
 function normalizeAddress(address) {
   return String(address || "").toLowerCase().replace(/^0x/, "")
 }
 
+// Omarchy's state file maps connector names to blocks of ten workspaces.
+// Parse each snapshot afresh so removed monitors do not leave stale entries.
+function parseWorkspaceBlocks(text) {
+  var blocks = Object.create(null)
+  var lines = String(text || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var fields = lines[i].split("\t")
+    if (fields.length < 3 || !fields[1] || !/^\d+$/.test(fields[0])) continue
+    var block = Number(fields[0])
+    if (!Number.isSafeInteger(block) || !Number.isSafeInteger(block * 10 + 10)) continue
+    blocks[fields[1]] = block
+  }
+  return blocks
+}
+
+function monitorWorkspaceBlock(blocks, monitorName, perMonitor) {
+  if (!perMonitor || !blocks || !Object.prototype.hasOwnProperty.call(blocks, monitorName)) return -1
+  return blocks[monitorName]
+}
+
+function workspaceBlockOf(id) {
+  return Math.floor((id - 1) / 10)
+}
+
+function workspaceSlotOf(id) {
+  return (id - 1) % 10 + 1
+}
+
 // Workspace ids to render. `occupied` maps id -> window count for every
 // normal (positive id) workspace Hyprland knows about. `activeIds` are
 // workspaces that must stay visible even when empty (focused / on-screen).
-function workspaceIds(occupied, activeIds, persistent, hideEmpty) {
+function workspaceIds(occupied, activeIds, persistent, hideEmpty, block) {
   var ids = []
   function add(id) {
     if (id > 0 && ids.indexOf(id) === -1) ids.push(id)
   }
 
-  if (!hideEmpty) for (var p = 1; p <= persistent; p++) add(p)
+  var base = block >= 0 ? block * 10 : 0
+  if (!hideEmpty) for (var p = 1; p <= persistent; p++) add(base + p)
   for (var key in occupied) {
     var id = Number(key)
     if (occupied[key] > 0 || !hideEmpty) add(id)
   }
   for (var a = 0; a < activeIds.length; a++) add(activeIds[a])
 
-  ids.sort(function(l, r) { return l - r })
+  // With a block, the monitor's own workspaces come first and visiting ones
+  // after them, as in Omarchy's bar, so a guest never sits among the slots.
+  function guest(id) { return block >= 0 && workspaceBlockOf(id) !== block ? 1 : 0 }
+  ids.sort(function(l, r) { return guest(l) - guest(r) || l - r })
   return ids
 }
 
 // Label text for a workspace pill.
-function workspaceLabel(id, focused, style) {
+function workspaceLabel(id, focused, style, block) {
   if (style === "none") return ""
   if (style === "glyph" && focused) return "󱓻"
-  return id === 10 ? "0" : String(id)
+  var local = block >= 0 && workspaceBlockOf(id) === block
+  var number = local ? workspaceSlotOf(id) : id
+  return number === 10 ? "0" : String(number)
+}
+
+// Caps user-entered icon text at 32 graphemes, cutting without an ellipsis.
+// Non-string junk (numbers, null) falls back to the default, which keeps
+// malformed shell.json entries from leaking into labels.
+function clipIconString(value, fallback) {
+  if (typeof value !== "string") return fallback
+  var chars = graphemes(value)
+  return chars.length > 32 ? chars.slice(0, 32).join("") : chars.join("")
+}
+
+// Custom label for a workspace pill from the user's settings, or "" when none
+// applies (the pill then falls back to workspaceLabel). Only the "custom"
+// label style consults the icon fields; every other style keeps its stock
+// behaviour. A per-workspace icon is more specific than the active override,
+// so it wins even while focused.
+function workspaceIcon(settings, id, focused) {
+  if (settings.labelStyle !== "custom") return ""
+  var n = Number(id)
+  var icon = n >= 1 && n <= 10 ? settings["wsIcon" + n] : ""
+  if (icon) return clipIconString(icon, "")
+  return focused && settings.activeIcon ? clipIconString(settings.activeIcon, "") : ""
+}
+
+var TERMINAL_APP_IDS = [
+  "ghostty", "com.mitchellh.ghostty", "alacritty", "org.alacritty.alacritty",
+  "kitty", "net.kovidgoyal.kitty", "foot", "footclient",
+  "wezterm", "org.wezfurlong.wezterm", "org.gnome.terminal",
+  "gnome-terminal", "gnome-terminal-server", "org.gnome.console", "kgx",
+  "konsole", "org.kde.konsole", "xterm", "uxterm", "urxvt",
+  "st", "st-256color", "xfce4-terminal", "tilix", "com.gexperts.tilix"
+]
+
+var AGENTS = [
+  { id: "agent.claude", name: "Claude Code", icon: "claude", light: false,
+    title: /^[\u2733\u2722\u2736\u273b\u273d\u00b7\u25d0-\u25d3\u23fa] |\bClaude Code\b/ },
+  { id: "agent.codex", name: "Codex", icon: "codex", light: true,
+    title: /^[\u2801-\u28ff] |^\[ *\S+ *\] Action Required\b/ },
+  { id: "agent.grok", name: "Grok", icon: "grok", light: true,
+    title: /^grok(\s|$)/i }
+]
+
+function agentFor(appId) {
+  for (var i = 0; i < AGENTS.length; i++) if (AGENTS[i].id === appId) return AGENTS[i]
+  return null
+}
+
+function agentAppId(appId, title) {
+  if (TERMINAL_APP_IDS.indexOf(appKey(appId)) === -1) return appId
+  var t = String(title || "")
+  for (var i = 0; i < AGENTS.length; i++) if (AGENTS[i].title.test(t)) return AGENTS[i].id
+  return appId
 }
 
 // Stable key identifying "the same app" across windows.
@@ -336,6 +480,35 @@ function truncate(text, max) {
   return out + "…"
 }
 
+// Keep recent focus order, ignoring temporary loss of focus to a shell layer.
+function rememberWindowFocus(history, address, openAddresses) {
+  var current = normalizeAddress(address)
+  if (!current) return history
+  var next = [current]
+  for (var i = 0; i < history.length; i++) {
+    var key = normalizeAddress(history[i])
+    if (key !== current && openAddresses.indexOf(key) !== -1 && next.indexOf(key) === -1)
+      next.push(key)
+  }
+  return next
+}
+
+function iconClickTarget(item, mode, history, openAddresses) {
+  if (!item) return ""
+  var current = normalizeAddress(item.address)
+  if (!item.focused) return current
+  if (mode === "previous") {
+    for (var i = 0; i < history.length; i++) {
+      var key = normalizeAddress(history[i])
+      if (key !== current && openAddresses.indexOf(key) !== -1) return key
+    }
+    return current
+  }
+  var addresses = item.addresses || [item.address]
+  var index = addresses.indexOf(item.address)
+  return normalizeAddress(addresses[(index + 1) % addresses.length])
+}
+
 // Title shown next to the focused icon. The app name when
 // the app has a single window in the workspace, else the window title.
 function focusedLabel(item, appName, maxLength) {
@@ -379,6 +552,49 @@ function fallbackLetter(name, appId) {
 function webAppHost(appId) {
   var m = /^(?:chrome|chromium|brave|msedge|vivaldi|helium|opera)-([^_]+?)(?:__|_).*-(?:Default|Profile_\d+)$/i.exec(String(appId || ""))
   return m ? m[1] : ""
+}
+
+// The whole "<host>_<path>" part of a Chromium-family --app class, lowercased:
+// "chrome-www.icloud.com__reminders_-Default" -> "www.icloud.com__reminders_".
+// "" when the class is not one.
+function webAppKey(appId) {
+  var m = /^(?:chrome|chromium|brave|msedge|vivaldi|helium|opera)-([^_]+?(?:__|_).*)-(?:Default|Profile_\d+)$/i.exec(String(appId || ""))
+  return m ? m[1].toLowerCase() : ""
+}
+
+// The key Chromium builds for an --app URL: host + "_" + path, every "/"
+// turned into "_", so https://www.icloud.com/reminders/ runs as
+// "www.icloud.com__reminders_". Query, fragment, port and credentials are not
+// part of it. "" for anything but an http(s) URL.
+function chromiumAppKey(url) {
+  var m = /^https?:\/\/(?:[^\/?#@]*@)?([^\/?#:]+)(?::\d*)?([^?#]*)/i.exec(String(url || ""))
+  if (!m) return ""
+  return (m[1] + "_" + (m[2] || "/")).replace(/\//g, "_").toLowerCase()
+}
+
+// The first http(s) URL in a desktop entry's Exec line, or "".
+function execUrl(exec) {
+  var m = /https?:\/\/[^\s"'<>]+/i.exec(String(exec || ""))
+  return m ? m[0] : ""
+}
+
+// Which desktop entry (given their Exec lines) launched a Chromium-family
+// --app window: the entry whose URL builds the window's exact key, else the
+// only entry on the window's host. Several web apps can share a host
+// (www.icloud.com/reminders, /numbers, /pages...), so with more than one
+// candidate and no exact match it returns -1 rather than guess.
+function webAppEntryIndex(appId, execs) {
+  var key = webAppKey(appId)
+  if (key === "") return -1
+  var hostPrefix = webAppHost(appId).toLowerCase() + "_"
+  var only = -1, count = 0
+  for (var i = 0; i < execs.length; i++) {
+    var entryKey = chromiumAppKey(execUrl(execs[i]))
+    if (entryKey === "") continue
+    if (entryKey === key) return i
+    if (entryKey.indexOf(hostPrefix) === 0) { only = i; count++ }
+  }
+  return count === 1 ? only : -1
 }
 
 // Icon candidates scanned from disk: prefer scalable, then the largest raster.
@@ -611,14 +827,21 @@ function mergedEntry(moduleName, current, delta) {
 if (typeof module !== "undefined") {
   module.exports = {
     DEFAULTS: DEFAULTS, resolveSettings: resolveSettings, showsApps: showsApps,
-    densityMetrics: densityMetrics, normalizeAddress: normalizeAddress,
+    densityMetrics: densityMetrics, pillThickness: pillThickness, pillPad: pillPad,
+    pillRadius: pillRadius, pillGap: pillGap, PILL_LIMITS: PILL_LIMITS,
+    normalizeAddress: normalizeAddress,
     agentWindowStates: agentWindowStates, agentPinAddress: agentPinAddress,
     parsePids: parsePids, normalizeAgentState: normalizeAgentState,
     agentProcessIds: agentProcessIds, pruneDeadAgents: pruneDeadAgents,
+    agentAppId: agentAppId, agentFor: agentFor,
     previewWidth: previewWidth, previewDimensions: previewDimensions, monitorArea: monitorArea, previewLayout: previewLayout, durationFor: durationFor,
-    workspaceIds: workspaceIds, workspaceLabel: workspaceLabel, appKey: appKey,
+    workspaceIds: workspaceIds, workspaceLabel: workspaceLabel, workspaceIcon: workspaceIcon, appKey: appKey,
+    parseWorkspaceBlocks: parseWorkspaceBlocks, monitorWorkspaceBlock: monitorWorkspaceBlock,
+    workspaceBlockOf: workspaceBlockOf, workspaceSlotOf: workspaceSlotOf,
     sortWindows: sortWindows, iconItems: iconItems, truncate: truncate,
-    focusedLabel: focusedLabel, webAppHost: webAppHost, appIdCandidates: appIdCandidates, iconPathScore: iconPathScore,
+    focusedLabel: focusedLabel, webAppHost: webAppHost, webAppKey: webAppKey, chromiumAppKey: chromiumAppKey,
+    execUrl: execUrl, webAppEntryIndex: webAppEntryIndex, appIdCandidates: appIdCandidates, iconPathScore: iconPathScore,
+    rememberWindowFocus: rememberWindowFocus, iconClickTarget: iconClickTarget,
     iconNameFromPath: iconNameFromPath, stepWorkspace: stepWorkspace, mergedEntry: mergedEntry,
     fallbackLetter: fallbackLetter
   }

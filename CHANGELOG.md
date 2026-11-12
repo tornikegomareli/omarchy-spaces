@@ -13,6 +13,36 @@
   site, each keep their own icon: an exact match on the launcher's window
   class now wins before the host-based guesses
 
+## 1.6.0
+
+- Agent logos: a terminal running Claude Code, Codex or Grok shows that
+  agent's logo instead of the terminal icon, told apart by the title each
+  agent sets. Only terminal windows are checked, and Settings → App icons →
+  Agent icons turns it off (#27, @tcballard)
+- Pill height and padding: set under Appearance → Pill size, with a preview of
+  the bar as you change them. Both stay automatic until you set them, so
+  nothing changes by default (#33, @pwn27sbx)
+- Clicking the focused app icon can return to the window you used before it,
+  even on another workspace: Behaviour → Clicking the focused app icon →
+  Previous window. Cycling a grouped app's windows stays the default
+  (#34, @rugobal)
+- Web apps that share a host, such as iCloud Reminders and Numbers, each show
+  their own icon instead of whichever was installed first (#32, @gjouret)
+
+## 1.5.0
+
+- Custom workspace labels: pick Custom under Appearance → Workspace label,
+  then give each workspace its own text, emoji or Nerd Font glyph, and
+  optionally one for whichever workspace is focused. An empty field keeps the
+  number, and holding Super still shows numbers (#28, @TMartinPPC)
+- Omarchy 4.5 gives every monitor its own workspaces 1–10. With "Only this
+  monitor's workspaces" on, each bar numbers its monitor's workspaces 1–10,
+  keeps that monitor's empty slots, and clicking one goes to it on that
+  monitor. Workspaces visiting from an unplugged monitor follow with their
+  global numbers. Older Omarchy versions are unchanged (#2, #30, @pomartel)
+- A newly installed app, such as an Omarchy web app, shows its icon right
+  away instead of a letter until the shell restarts (#31, @dev-learner-supreme)
+
 ## 1.4.0
 
 - Show workspace numbers while holding Super: an opt-in setting under

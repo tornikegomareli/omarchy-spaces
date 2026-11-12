@@ -31,6 +31,49 @@ test("resolveSettings fills defaults and clamps", () => {
   assert.strictEqual(s.groupApps, false)
 })
 
+test("focused icon click settings preserve cycling unless previous is selected", () => {
+  assert.strictEqual(M.resolveSettings({}).activeIconClick, "cycle")
+  assert.strictEqual(M.resolveSettings({activeIconClick: "previous"}).activeIconClick, "previous")
+  assert.strictEqual(M.resolveSettings({activeIconClick: "invalid"}).activeIconClick, "cycle")
+})
+
+test("focus history ignores shell layers, removes closed windows and normalizes addresses", () => {
+  let history = M.rememberWindowFocus([], "0xA", ["a", "b"])
+  history = M.rememberWindowFocus(history, "0xB", ["a", "b"])
+  assert.deepStrictEqual(history, ["b", "a"])
+  assert.deepStrictEqual(M.rememberWindowFocus(history, "", []), history)
+  assert.deepStrictEqual(M.rememberWindowFocus(history, "0xb", ["a", "b"]), history)
+  assert.deepStrictEqual(M.rememberWindowFocus(history, "c", ["b", "c"]), ["c", "b"])
+})
+
+test("repeated icon clicks toggle back to the previous window", () => {
+  const open = ["a", "b", "c"]
+  const icon = {address: "b", addresses: ["b"], focused: false}
+  let history = M.rememberWindowFocus([], "a", open)
+  assert.strictEqual(M.iconClickTarget(icon, "previous", history, open), "b")
+  history = M.rememberWindowFocus(history, "b", open)
+  icon.focused = true
+  assert.strictEqual(M.iconClickTarget(icon, "previous", history, open), "a")
+  history = M.rememberWindowFocus(history, "a", open)
+  icon.focused = false
+  assert.strictEqual(M.iconClickTarget(icon, "previous", history, open), "b")
+})
+
+test("focused icon skips closed history and stays put without another window", () => {
+  const icon = {address: "b", addresses: ["b"], focused: true}
+  assert.strictEqual(M.iconClickTarget(icon, "previous", ["b", "a", "c"], ["b", "c"]), "c")
+  assert.strictEqual(M.iconClickTarget(icon, "previous", ["b", "a"], ["b"]), "b")
+  assert.strictEqual(M.iconClickTarget(icon, "previous", [], ["b"]), "b")
+})
+
+test("previous window mode takes precedence over grouped cycling", () => {
+  const icon = {address: "b", addresses: ["b", "c"], focused: true}
+  assert.strictEqual(M.iconClickTarget(icon, "previous", ["b", "a"], ["a", "b", "c"]), "a")
+  assert.strictEqual(M.iconClickTarget(icon, "cycle", ["b", "a"], ["a", "b", "c"]), "c")
+  icon.address = "c"
+  assert.strictEqual(M.iconClickTarget(icon, "cycle", [], ["b", "c"]), "b")
+})
+
 test("workspaceIds keeps persistent, adds occupied and active, sorted", () => {
   assert.deepStrictEqual(M.workspaceIds({ 7: 2, 2: 0 }, [9], 3, false), [1, 2, 3, 7, 9])
 })
@@ -130,6 +173,48 @@ test("webAppHost parses chromium app classes", () => {
   assert.strictEqual(M.webAppHost("foot"), "")
 })
 
+test("webAppKey keeps the path of chromium app classes", () => {
+  assert.strictEqual(M.webAppKey("chrome-www.icloud.com__reminders_-Default"), "www.icloud.com__reminders_")
+  assert.strictEqual(M.webAppKey("brave-app.hey.com__-Profile_1"), "app.hey.com__")
+  assert.strictEqual(M.webAppKey("chrome-X.com__Home-Default"), "x.com__home")
+  assert.strictEqual(M.webAppKey("foot"), "")
+  assert.strictEqual(M.webAppKey("chrome-Default"), "")
+})
+
+test("chromiumAppKey builds the class key from a URL", () => {
+  assert.strictEqual(M.chromiumAppKey("https://www.icloud.com/reminders/"), "www.icloud.com__reminders_")
+  assert.strictEqual(M.chromiumAppKey("https://web.whatsapp.com/"), "web.whatsapp.com__")
+  assert.strictEqual(M.chromiumAppKey("https://web.whatsapp.com"), "web.whatsapp.com__")
+  assert.strictEqual(M.chromiumAppKey("https://x.com/home?lang=en#top"), "x.com__home")
+  assert.strictEqual(M.chromiumAppKey("http://user@Example.com:8080/a/b"), "example.com__a_b")
+  assert.strictEqual(M.chromiumAppKey("file:///home/me/index.html"), "")
+  assert.strictEqual(M.execUrl('omarchy-launch-webapp "https://www.icloud.com/pages/"'), "https://www.icloud.com/pages/")
+  assert.strictEqual(M.execUrl("chromium --app=https://x.com/home --flag"), "https://x.com/home")
+  assert.strictEqual(M.execUrl("foot"), "")
+})
+
+test("webAppEntryIndex tells apart web apps sharing a host", () => {
+  const execs = [
+    'omarchy-launch-webapp "https://www.icloud.com/numbers/"',
+    "foot",
+    'omarchy-launch-webapp "https://www.icloud.com/reminders/"',
+    'omarchy-launch-webapp "https://www.icloud.com/pages/"',
+    'omarchy-launch-webapp "https://web.whatsapp.com/"',
+  ]
+  assert.strictEqual(M.webAppEntryIndex("chrome-www.icloud.com__reminders_-Default", execs), 2)
+  assert.strictEqual(M.webAppEntryIndex("chrome-www.icloud.com__numbers_-Default", execs), 0)
+  assert.strictEqual(M.webAppEntryIndex("chromium-www.icloud.com__pages_-Profile_2", execs), 3)
+  // No exact match and several entries on the host: no guess.
+  assert.strictEqual(M.webAppEntryIndex("chrome-www.icloud.com__keynote_-Default", execs), -1)
+  // No exact match and one entry on the host (e.g. a different start path).
+  assert.strictEqual(M.webAppEntryIndex("chrome-web.whatsapp.com__send-Default", execs), 4)
+  assert.strictEqual(M.webAppEntryIndex("chrome-web.whatsapp.com__-Default", execs), 4)
+  assert.strictEqual(M.webAppEntryIndex("chrome-app.hey.com__-Default", execs), -1)
+  assert.strictEqual(M.webAppEntryIndex("foot", execs), -1)
+  // A host that merely starts with another host is not the same host.
+  assert.strictEqual(M.webAppEntryIndex("chrome-x.com__home-Default", ['omarchy-launch-webapp "https://x.community/"']), -1)
+})
+
 test("iconPathScore prefers svg then larger png", () => {
   assert.ok(M.iconPathScore("/a/scalable/apps/x.svg") > M.iconPathScore("/a/128x128/apps/x.png"))
   assert.ok(M.iconPathScore("/a/128x128/apps/x.png") > M.iconPathScore("/a/16x16/apps/x.png"))
@@ -166,6 +251,69 @@ test("new settings validate", () => {
   assert.strictEqual(s.showIcons, true)
   assert.strictEqual(s.pillBackground, true)
   assert.strictEqual(M.resolveSettings({ pillBackground: false }).pillBackground, false)
+})
+
+test("pillHeight and pillPadding default to automatic", () => {
+  const s = M.resolveSettings({})
+  assert.strictEqual(s.pillHeight, 0)
+  assert.strictEqual(s.pillPadding, 0)
+  assert.strictEqual(M.resolveSettings({ pillHeight: "13" }).pillHeight, 13)
+  assert.strictEqual(M.resolveSettings({ pillHeight: -5 }).pillHeight, 0)
+  assert.strictEqual(M.resolveSettings({ pillHeight: 500 }).pillHeight, 64)
+  assert.strictEqual(M.resolveSettings({ pillPadding: 6 }).pillPadding, 6)
+  assert.strictEqual(M.resolveSettings({ pillPadding: 99 }).pillPadding, 24)
+  assert.strictEqual(M.resolveSettings({ pillPadding: -1 }).pillPadding, 0)
+})
+
+test("automatic pill height is exactly the old expression", () => {
+  // No rounding of barSize and no change to the floor: 0 means today's pill.
+  for (const bar of [18, 20, 26, 28, 30]) {
+    assert.strictEqual(M.pillThickness(bar, 0, 6), Math.max(16, bar - 6))
+  }
+  assert.strictEqual(M.pillThickness(27.5, 0, 6), 21.5)
+  // The spacing scale still reaches the inset, as it always did.
+  assert.strictEqual(M.pillThickness(30, 0, 11), 19)
+})
+
+test("an explicit pillHeight wins, capped to the bar, 8 px floor", () => {
+  assert.strictEqual(M.pillThickness(28, 13, 6), 13)
+  assert.strictEqual(M.pillThickness(28, 40, 6), 28)
+  assert.strictEqual(M.pillThickness(28, 5, 6), 8)
+})
+
+test("pillPadding replaces the density padding only when set", () => {
+  assert.strictEqual(M.pillPad(0, 7), 7)
+  assert.strictEqual(M.pillPad(6, 7), 6)
+  assert.strictEqual(M.pillPad(0, 3), 3)
+})
+
+test("the pill limits are stated once", () => {
+  assert.strictEqual(M.PILL_LIMITS.heightMin, 8)
+  assert.strictEqual(M.PILL_LIMITS.heightMax, 64)
+  assert.strictEqual(M.PILL_LIMITS.paddingMax, 24)
+  assert.strictEqual(M.PILL_LIMITS.autoFloor, 16)
+  assert.strictEqual(M.PILL_LIMITS.autoInset, 6)
+  assert.strictEqual(M.PILL_LIMITS.radiusRatio, 0.32)
+  // resolveSettings clamps to the same numbers the settings panel shows.
+  assert.strictEqual(M.resolveSettings({ pillHeight: 999 }).pillHeight, M.PILL_LIMITS.heightMax)
+  assert.strictEqual(M.resolveSettings({ pillPadding: 999 }).pillPadding, M.PILL_LIMITS.paddingMax)
+})
+
+test("the bar caps the pill before the floor applies", () => {
+  // A bar shorter than the 8 px floor wins: the pill never leaves the bar.
+  assert.strictEqual(M.pillThickness(6, 18, 6), 6)
+  assert.strictEqual(M.pillThickness(6, 5, 6), 6)
+  assert.strictEqual(M.pillThickness(0, 18, 6), 0)
+})
+
+test("pillRadius and pillGap carry the widget rules", () => {
+  assert.strictEqual(M.pillRadius(20, true), 6)
+  assert.strictEqual(M.pillRadius(17, true), 5)
+  assert.strictEqual(M.pillRadius(20, false), 0)
+  assert.strictEqual(M.pillGap("compact"), 2)
+  assert.strictEqual(M.pillGap("roomy"), 7)
+  assert.strictEqual(M.pillGap("normal"), 4)
+  assert.strictEqual(M.pillGap("junk"), 4)
 })
 
 test("normalizeAddress strips 0x and lowercases", () => {
@@ -379,7 +527,7 @@ test("parsePids drops junk and init", () => {
 
 // Apps and web pages set their own window titles. Qt guesses rich text by
 // default, so a title with markup could load remote images in the shell.
-test("window titles render as plain text", () => {
+test("window titles and workspace labels render as plain text", () => {
   const qml = fs.readFileSync(path.join(__dirname, "..", "Spaces.qml"), "utf8")
   const blocks = []
   const re = /^\s*Text\s*\{/gm
@@ -393,9 +541,167 @@ test("window titles render as plain text", () => {
     }
     blocks.push(qml.slice(start, i + 1))
   }
-  const titled = blocks.filter((b) => /^\s*text:.*title/im.test(b))
-  assert.ok(titled.length >= 2, "expected the focused title and the preview footer")
+  const titled = blocks.filter((b) => /^\s*text:.*(title|label)/im.test(b))
+  assert.ok(titled.length >= 3, "expected the workspace label, the focused title and the preview footer")
   for (const b of titled) assert.match(b, /textFormat:\s*Text\.PlainText/, b.split("\n").find((l) => /text:/.test(l)).trim())
+})
+
+test("agentAppId recognises Claude Code, Codex and Grok terminals", () => {
+  const g = "com.mitchellh.ghostty"
+  assert.strictEqual(M.agentAppId(g, "\u25d1 Omarchy plugin skills"), "agent.claude")
+  assert.strictEqual(M.agentAppId(g, "\u2733 Fix the bar"), "agent.claude")
+  assert.strictEqual(M.agentAppId(g, "Claude Code"), "agent.claude")
+  assert.strictEqual(M.agentAppId(g, "\u2838 Add snapping and dock controls | tcballard"), "agent.codex")
+  assert.strictEqual(M.agentAppId(g, "\u280b scratchpad"), "agent.codex")
+  assert.strictEqual(M.agentAppId(g, "Collect iPad boot logs | tcballard"), g)
+  assert.strictEqual(M.agentAppId(g, "[ . ] Action Required | Build Omarchy shortcut wheel | tcballard"), "agent.codex")
+  assert.strictEqual(M.agentAppId(g, "grok"), "agent.grok")
+  assert.strictEqual(M.agentAppId(g, "~/code"), g)
+  assert.strictEqual(M.agentAppId(g, "grokking notes"), g)
+  assert.strictEqual(M.agentAppId(g, ""), g)
+  assert.strictEqual(M.agentFor("agent.grok").name, "Grok")
+  assert.strictEqual(M.agentFor(g), null)
+})
+
+
+test("agentAppId only recognises agents in known terminals", () => {
+  for (const appId of [
+    "com.mitchellh.ghostty", "Ghostty", "Alacritty", "org.alacritty.Alacritty",
+    "kitty", "net.kovidgoyal.kitty", "foot", "footclient",
+    "org.wezfurlong.wezterm", "WezTerm", "org.gnome.Terminal",
+    "gnome-terminal-server", "org.gnome.Console", "kgx", "org.kde.konsole",
+    "konsole", "XTerm", "UXTerm", "URxvt", "st", "st-256color",
+    "xfce4-terminal", "tilix", "com.gexperts.Tilix"
+  ]) {
+    assert.strictEqual(M.agentAppId(appId, "Claude Code"), "agent.claude", appId)
+    assert.strictEqual(M.agentAppId(appId, "\u280b scratchpad"), "agent.codex", appId)
+    assert.strictEqual(M.agentAppId(appId, "grok"), "agent.grok", appId)
+  }
+  for (const appId of ["zen", "chromium", "firefox", "omarchy-webapp", "my-foot-app", "", null, undefined]) {
+    for (const title of [
+      "WeTransfer | Send Large Files Fast — Zen Browser",
+      "Pricing | Vercel - Chromium",
+      "Claude Code overview - Anthropic - Chromium",
+      "grok - Google Search - Chromium",
+      "Claude Code", "grok", "\u280b scratchpad",
+      "[ . ] Action Required | Build Omarchy shortcut wheel | tcballard"
+    ]) assert.strictEqual(M.agentAppId(appId, title), appId, String(appId) + ": " + title)
+  }
+})
+
+test("agentAppId leaves ambiguous Codex titles as terminal windows", () => {
+  const appId = "com.mitchellh.ghostty"
+  for (const title of [
+    "Collect iPad boot logs | tcballard", "vim | project", "build | x",
+    "Pricing | Vercel - Chromium", "scratchpad", "notes [ . ] Action Required | project",
+    "[ . ] Action Requiredness | project"
+  ]) assert.strictEqual(M.agentAppId(appId, title), appId, title)
+})
+
+test("monitor-local placeholders retain global IDs for actions", () => {
+  assert.deepStrictEqual(M.workspaceIds({11: 1, 13: 2}, [11], 5, false, 1), [11, 12, 13, 14, 15])
+  assert.deepStrictEqual(M.workspaceIds({11: 1, 13: 2}, [12], 5, true, 1), [11, 12, 13])
+  assert.deepStrictEqual(M.workspaceIds({6: 1}, [6], 5, false, 0), [1, 2, 3, 4, 5, 6])
+  assert.deepStrictEqual(M.workspaceIds({11: 1}, [11], 2, false), [1, 2, 11])
+})
+
+test("visiting workspaces follow the monitor's own", () => {
+  assert.deepStrictEqual(M.workspaceIds({3: 1, 12: 1, 26: 1}, [12], 5, false, 1), [11, 12, 13, 14, 15, 3, 26])
+  assert.deepStrictEqual(M.workspaceIds({3: 1, 12: 1}, [3], 5, true, 1), [12, 3])
+  assert.deepStrictEqual(M.workspaceIds({3: 1, 12: 1}, [3], 2, false), [1, 2, 3, 12])
+})
+
+test("local labels preserve guest IDs and existing label styles", () => {
+  assert.strictEqual(M.workspaceLabel(11, false, "number", 1), "1")
+  assert.strictEqual(M.workspaceLabel(15, false, "number", 1), "5")
+  assert.strictEqual(M.workspaceLabel(20, false, "number", 1), "0")
+  assert.strictEqual(M.workspaceLabel(21, false, "number", 1), "21")
+  assert.strictEqual(M.workspaceLabel(11, false, "number", -1), "11")
+  assert.strictEqual(M.workspaceLabel(11, false, "none", 1), "")
+  assert.strictEqual(M.workspaceLabel(11, true, "glyph", 1), M.workspaceLabel(1, true, "glyph"))
+})
+
+test("monitor block parser handles missing and malformed snapshots", () => {
+  for (const input of [undefined, "", "junk", "-1\tDP-1\tdisplay", "1.5\tDP-1\tdisplay",
+    "1\t\tdisplay", "99999999999999999999\tDP-1\tdisplay"]) {
+    assert.strictEqual(M.monitorWorkspaceBlock(M.parseWorkspaceBlocks(input), "DP-1", true), -1)
+  }
+  const blocks = M.parseWorkspaceBlocks("0\teDP-1\tLaptop\n1\tDP-1\tExternal\njunk\n")
+  assert.strictEqual(M.monitorWorkspaceBlock(blocks, "eDP-1", true), 0)
+  assert.strictEqual(M.monitorWorkspaceBlock(blocks, "DP-1", true), 1)
+  assert.strictEqual(M.monitorWorkspaceBlock(blocks, "DP-1", false), -1)
+  assert.strictEqual(M.monitorWorkspaceBlock(blocks, "constructor", true), -1)
+})
+
+test("new monitor snapshots replace assignments and remove stale monitors", () => {
+  let blocks = M.parseWorkspaceBlocks("0\teDP-1\tLaptop\n1\tDP-1\tExternal")
+  assert.strictEqual(M.monitorWorkspaceBlock(blocks, "DP-1", true), 1)
+  blocks = M.parseWorkspaceBlocks("0\tDP-1\tExternal")
+  const block = M.monitorWorkspaceBlock(blocks, "DP-1", true)
+  assert.strictEqual(block, 0)
+  assert.strictEqual(M.monitorWorkspaceBlock(blocks, "eDP-1", true), -1)
+  assert.deepStrictEqual(M.workspaceIds({}, [1], 5, false, block), [1, 2, 3, 4, 5])
+  blocks = M.parseWorkspaceBlocks("")
+  assert.strictEqual(M.monitorWorkspaceBlock(blocks, "DP-1", true), -1)
+})
+
+test("workspace block and slot boundaries agree with Omarchy", () => {
+  for (const [id, block, slot] of [[1, 0, 1], [10, 0, 10], [11, 1, 1], [20, 1, 10], [21, 2, 1]]) {
+    assert.strictEqual(M.workspaceBlockOf(id), block)
+    assert.strictEqual(M.workspaceSlotOf(id), slot)
+  }
+})
+
+test("workspace icon settings default off and reject junk", () => {
+  const s = M.resolveSettings({})
+  assert.strictEqual(s.activeIcon, "")
+  for (let i = 1; i <= 10; i++) assert.strictEqual(s["wsIcon" + i], "")
+  const junk = M.resolveSettings({ activeIcon: 42, wsIcon3: null })
+  assert.strictEqual(junk.activeIcon, "")
+  assert.strictEqual(junk.wsIcon3, "")
+})
+
+test("workspace icon strings are capped at 32 graphemes", () => {
+  const s = M.resolveSettings({ wsIcon1: "a".repeat(40), wsIcon2: "\u{1F600}\u{1F600}" })
+  assert.strictEqual(s.wsIcon1, "a".repeat(32))
+  // Surrogate pairs stay whole; two emoji count as two graphemes.
+  assert.strictEqual(s.wsIcon2, "\u{1F600}\u{1F600}")
+  // A 40-emoji chain of ZWJ families clips to whole families, never half a
+  // sequence.
+  const family = "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66"
+  const long = M.resolveSettings({ wsIcon5: family.repeat(40) })
+  assert.strictEqual(long.wsIcon5.length % family.length, 0)
+  assert.ok(long.wsIcon5.length <= 32 * family.length)
+})
+
+test("workspaceIcon only applies to the custom label style", () => {
+  const fields = { wsIcon3: "\u2302", activeIcon: "\u2699" }
+  // Number, glyph and none keep their stock behaviour with fields present.
+  for (const style of ["number", "glyph", "none"]) {
+    const s = M.resolveSettings({ ...fields, labelStyle: style })
+    assert.strictEqual(M.workspaceIcon(s, 3, true), "", style)
+    assert.strictEqual(M.workspaceIcon(s, 7, true), "", style)
+  }
+  const custom = M.resolveSettings({ ...fields, labelStyle: "custom" })
+  assert.strictEqual(M.workspaceIcon(custom, 3, false), "\u2302")
+})
+
+test("workspaceIcon falls back to the label and honours precedence", () => {
+  const off = M.resolveSettings({ labelStyle: "custom" })
+  assert.strictEqual(M.workspaceIcon(off, 3, true), "")
+  assert.strictEqual(M.workspaceIcon(off, 10, false), "")
+
+  const named = M.resolveSettings({ wsIcon3: "\u2302", wsIcon10: "0\uFE0F\u20E3", activeIcon: "\u2699", labelStyle: "custom" })
+  assert.strictEqual(M.workspaceIcon(named, 3, false), "\u2302")
+  assert.strictEqual(M.workspaceIcon(named, 10, false), "0\uFE0F\u20E3")
+  // Unnamed workspaces fall back, and the focused one shows the override.
+  assert.strictEqual(M.workspaceIcon(named, 7, false), "")
+  assert.strictEqual(M.workspaceIcon(named, 7, true), "\u2699")
+  // A named workspace keeps its icon even while focused.
+  assert.strictEqual(M.workspaceIcon(named, 3, true), "\u2302")
+  // Workspace 11 has no per-workspace field, but the active override still
+  // applies to whatever is focused.
+  assert.strictEqual(M.workspaceIcon(named, 11, true), "\u2699")
 })
 
 if (failed) { console.log(failed + " failed"); process.exit(1) }

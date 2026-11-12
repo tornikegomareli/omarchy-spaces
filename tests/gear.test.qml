@@ -87,6 +87,26 @@ Window {
       console.log("PASS: stable gear position, click opens settings, hidden mode")
       workspaceEdges()
       appIcons()
+      previousWindow()
+    }
+    function previousWindow() {
+      var current = String(widget.activeWindowAddress()).replace(/^0x/, "").toLowerCase()
+      var other = widget.liveWindowAddresses().filter(function(address) { return address !== current })[0]
+      if (!current || !other) {
+        console.log("SKIP: need two live windows for the previous-window check")
+        return
+      }
+      widget.settings = Object.assign({}, widget.settings, {activeIconClick: "previous"})
+      widget.windowFocusHistory = [current, other]
+      var icon = {address: current, addresses: [current], focused: true}
+      var sent = sentBy(function() { widget.activateItem(icon) })
+      check(sent.indexOf("address:0x" + other) !== -1,
+        "Focused icon did not target the previous live window: " + sent)
+      icon.focused = false
+      sent = sentBy(function() { widget.activateItem(icon) })
+      check(sent.indexOf("address:0x" + current) !== -1,
+        "Unfocused icon did not target its own window: " + sent)
+      console.log("PASS: focused icon returns to previous live window; unfocused icon focuses its own window")
     }
     function workspaceEdges() {
       var workspace = widget.workspaceIds.filter(function(id) { return id !== widget.currentWorkspaceId })[0]
