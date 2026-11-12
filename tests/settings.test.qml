@@ -84,6 +84,32 @@ Window {
       equal(form.cfg.pillPadding, 24)
       keyClick(Qt.Key_Home)
       equal(form.cfg.pillPadding, 0)
+      form.cfg = Model.resolveSettings({labelStyle: "custom"})
+      wait(50)
+      var workspacesHeader = find(form, "group", "workspaces")
+      equal(form.labelGroup, "")
+      equal(workspacesHeader.expanded, false)
+      workspacesHeader.clicked()
+      equal(form.labelGroup, "workspaces")
+      equal(workspacesHeader.expanded, true)
+      // The open group shows ten numbered boxes in five columns, and typing in
+      // one saves it like any other setting.
+      var iconGrid = find(form, "key", "wsIcon3").parent
+      equal(iconGrid.visible, true)
+      equal(iconGrid.columns, 5)
+      for (var slot = 1; slot <= 10; slot++)
+        equal(find(iconGrid, "key", "wsIcon" + slot) !== null, true)
+      var iconInput = find(find(form, "key", "wsIcon3"), "activeFocusOnTab", true)
+      iconInput.text = "★"
+      iconInput.editingFinished()
+      equal(form.cfg.wsIcon3, "★")
+      var activeHeader = find(form, "group", "active")
+      activeHeader.clicked()
+      equal(form.labelGroup, "active")
+      equal(workspacesHeader.expanded, false)
+      activeHeader.clicked()
+      equal(form.labelGroup, "")
+      form.labelGroup = ""
       // Group headings are all the same small-caps label; a title-case heading
       // of its own would stand out from every other group.
       equal(find(form, "text", "Pill size"), null)
