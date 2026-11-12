@@ -35,7 +35,7 @@ var DEFAULTS = {
   previewSize: "medium",      // "small" | "medium" | "large"
   previewLive: true,          // keep previews streaming; false = one frame
   agentStatus: true,          // badges for coding agents running in terminals
-  chromiumFavicons: true      // plain Chromium windows show their active tab's favicon (reads Chromium's history/favicon files)
+  chromiumFavicons: false     // plain Chromium windows show their active tab's favicon (reads Chromium's history/favicon files)
 }
 
 var SHOW_APPS = ["all", "active", "hover", "hoverOnly"]

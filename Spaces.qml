@@ -508,7 +508,7 @@ Panel {
     root.iconRevision
     var key = Model.appKey(appId)
     var label = String(title || "")
-    // A plain Chromium window shows its active tab's favicon (on by default, setting chromiumFavicons).
+    // A plain Chromium window shows its active tab's favicon when chromiumFavicons is enabled.
     if (root.cfg.chromiumFavicons && key === "chromium" && root.faviconMap[label]) {
       return { source: Util.fileUrl(root.faviconMap[label]), name: "Chromium" }
     }
@@ -558,7 +558,8 @@ Panel {
     for (var id in workspaceMap) {
       var wins = workspaceMap[id].windows
       for (var i = 0; i < wins.length; i++) {
-        if (Model.appKey(wins[i].appId) === "chromium" && wins[i].title !== "" && titles.indexOf(wins[i].title) < 0)
+        if (Model.appKey(wins[i].appId) === "chromium" && wins[i].title !== "" &&
+            !root.faviconMap[wins[i].title] && titles.indexOf(wins[i].title) < 0)
           titles.push(wins[i].title)
       }
     }
@@ -590,7 +591,10 @@ Panel {
     }
     onStarted: root.faviconPending = ({})
     onExited: {
-      root.faviconMap = root.faviconPending
+      var merged = ({})
+      for (var title in root.faviconMap) merged[title] = root.faviconMap[title]
+      for (var title in root.faviconPending) merged[title] = root.faviconPending[title]
+      root.faviconMap = merged
       root.invalidateIcons()
       faviconDebounce.restart()
     }

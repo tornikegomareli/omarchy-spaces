@@ -182,9 +182,9 @@ Off by default. Turn on Appearance → Pill border to draw an outline around a w
 
 ### Chromium tab favicons
 
-On by default. With App icons → Chromium tab favicons on, a plain Chromium window shows its active tab's own favicon instead of the generic Chromium icon. Web apps already use their launcher's icon; this is for ordinary browser windows.
+Off by default. Opt in under App icons → Chromium tab favicons to show a plain Chromium window's active tab favicon instead of the generic Chromium icon. Web apps already use their launcher's icon; this is for ordinary browser windows.
 
-It works by reading Chromium's own `History` and `Favicons` files in the profile Chromium used last (`~/.config/chromium/<profile>`, from `Local State`; set `CHROMIUM_PROFILE` to a profile folder to override). They are copied first because Chromium locks them, only the matching icon is cached under `~/.cache/spaces-favicons`, and nothing leaves your machine. Turn the setting off if you would rather Spaces never read those files. Chromium only: other browsers are not covered. See `scripts/chromium-favicon`.
+When enabled, it reads Chromium's own `History` and `Favicons` files in the profile Chromium used last (`~/.config/chromium/<profile>`, from `Local State`; set `CHROMIUM_PROFILE` to a profile folder to override). They are copied first because Chromium locks them, only the matching icon is cached under `~/.cache/spaces-favicons`, and nothing leaves your machine. Leave the setting off if you would rather Spaces never read those files. Chromium only: other browsers are not covered. See `scripts/chromium-favicon`.
 
 ### Show numbers while holding Super
 

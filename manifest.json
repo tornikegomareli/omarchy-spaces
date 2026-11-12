@@ -186,7 +186,7 @@
         "key": "chromiumFavicons",
         "type": "bool",
         "label": "Chromium tab favicons",
-        "default": true
+        "default": false
       },
       {
         "key": "urgentHighlight",
