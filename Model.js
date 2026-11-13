@@ -30,6 +30,7 @@ var DEFAULTS = {
   density: "normal",          // "compact" | "normal" | "roomy"
   pillHeight: 0,              // px; 0 = automatic (bar height minus the usual inset)
   pillPadding: 0,             // px per side inside a pill; 0 = from density
+  pillShape: "auto",          // "auto" (follows window rounding) | "oval"
   activeClick: "none",        // clicking the active pill: "none" | "previous"
   activeIconClick: "cycle",   // clicking a focused app: "cycle" | "previous"
   settingsButton: "never",    // gear button: "hover" | "always" | "never"
@@ -46,6 +47,7 @@ var DEFAULTS = {
 var SHOW_APPS = ["all", "active", "hover", "hoverOnly"]
 var ICON_STYLES = ["color", "mono"]
 var DENSITIES = ["compact", "normal", "roomy"]
+var PILL_SHAPES = ["auto", "oval"]
 var ACTIVE_CLICKS = ["none", "previous"]
 var ACTIVE_ICON_CLICKS = ["cycle", "previous"]
 var SETTINGS_BUTTONS = ["hover", "always", "never"]
@@ -98,6 +100,7 @@ function resolveSettings(raw) {
     density: oneOf(s.density, DENSITIES, d.density),
     pillHeight: clampInt(s.pillHeight, 0, PILL_LIMITS.heightMax, d.pillHeight),
     pillPadding: clampInt(s.pillPadding, 0, PILL_LIMITS.paddingMax, d.pillPadding),
+    pillShape: oneOf(s.pillShape, PILL_SHAPES, d.pillShape),
     activeClick: oneOf(s.activeClick, ACTIVE_CLICKS, d.activeClick),
     activeIconClick: oneOf(s.activeIconClick, ACTIVE_ICON_CLICKS, d.activeIconClick),
     settingsButton: oneOf(s.settingsButton, SETTINGS_BUTTONS, d.settingsButton),
@@ -164,8 +167,10 @@ function pillThickness(barSize, pillHeight, inset) {
   return Math.max(PILL_LIMITS.autoFloor, barSize - inset)
 }
 
-// Corner radius for a pill of `thickness`, or 0 when the theme is square.
-function pillRadius(thickness, rounded) {
+// Corner radius for a pill of `thickness`: round ends for the oval shape,
+// otherwise the theme's rounding, or 0 when the theme is square.
+function pillRadius(thickness, rounded, shape) {
+  if (shape === "oval") return Math.round(thickness / 2)
   return rounded ? Math.round(thickness * PILL_LIMITS.radiusRatio) : 0
 }
 
@@ -177,6 +182,12 @@ function pillGap(density) {
 // Horizontal padding inside a pill: an explicit pillPadding wins over density.
 function pillPad(pillPadding, autoPad) {
   return pillPadding > 0 ? pillPadding : autoPad
+}
+
+// Automatic padding: the density's, but on an oval pill at least enough that
+// the first and last icon clear the round ends.
+function autoPillPad(densityPad, thickness, shape) {
+  return shape === "oval" ? Math.max(densityPad, Math.round(thickness * 0.3)) : densityPad
 }
 
 // Hyprland reports addresses with or without the 0x prefix depending on source.
@@ -823,7 +834,7 @@ function mergedEntry(moduleName, current, delta) {
 if (typeof module !== "undefined") {
   module.exports = {
     DEFAULTS: DEFAULTS, resolveSettings: resolveSettings, showsApps: showsApps,
-    densityMetrics: densityMetrics, pillThickness: pillThickness, pillPad: pillPad,
+    densityMetrics: densityMetrics, pillThickness: pillThickness, pillPad: pillPad, autoPillPad: autoPillPad,
     pillRadius: pillRadius, pillGap: pillGap, PILL_LIMITS: PILL_LIMITS,
     normalizeAddress: normalizeAddress,
     agentWindowStates: agentWindowStates, agentPinAddress: agentPinAddress,

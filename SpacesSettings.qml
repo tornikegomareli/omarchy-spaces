@@ -23,8 +23,9 @@ Item {
   // labels show the real numbers instead of a second opinion.
   readonly property int barHeight: bar ? bar.barSize : Style.bar.sizeHorizontal
   readonly property int autoPillHeight: Model.pillThickness(barHeight, 0, Style.space(Model.PILL_LIMITS.autoInset))
-  readonly property int autoPillPad: Style.space(Model.densityMetrics(cfg ? cfg.density : "normal").pad)
   readonly property int pillHeight: Model.pillThickness(barHeight, cfg ? cfg.pillHeight : 0, Style.space(Model.PILL_LIMITS.autoInset))
+  readonly property int autoPillPad: Model.autoPillPad(Style.space(Model.densityMetrics(cfg ? cfg.density : "normal").pad),
+    pillHeight, cfg ? cfg.pillShape : "auto")
   readonly property real pillPad: Model.pillPad(cfg ? cfg.pillPadding : 0, autoPillPad)
 
   function applySetting(delta) { settingChanged(delta) }
@@ -275,6 +276,15 @@ Item {
               shownValue: Math.round(root.pillPad)
               autoValue: root.autoPillPad
               hint: "Same on both sides."
+            }
+
+            ChoiceSetting {
+              title: "PILL SHAPE"
+              key: "pillShape"
+              options: [
+                { value: "auto", label: "Auto" },
+                { value: "oval", label: "Oval" }
+              ]
             }
 
             ToggleSetting {
@@ -604,7 +614,7 @@ Item {
 
           height: root.pillHeight
           width: labelText.implicitWidth + root.pillPad * 2
-          radius: Model.pillRadius(height, Style.cornerRadius > 0)
+          radius: Model.pillRadius(height, Style.cornerRadius > 0, root.cfg.pillShape)
           color: active ? Util.alpha(root.fg, 0.18) : "transparent"
 
           Behavior on height { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }

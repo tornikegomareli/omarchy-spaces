@@ -57,7 +57,7 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property int pillThickness: Model.pillThickness(barSize, cfg.pillHeight, Style.space(Model.PILL_LIMITS.autoInset))
   readonly property int iconPx: Math.min(cfg.iconSize, pillThickness - Style.space(4))
-  readonly property int pillRadius: Model.pillRadius(pillThickness, Style.cornerRadius > 0)
+  readonly property int pillRadius: Model.pillRadius(pillThickness, Style.cornerRadius > 0, cfg.pillShape)
   readonly property int dur: Model.durationFor(cfg, 280)
   readonly property int fastDur: Model.durationFor(cfg, 160)
   readonly property real trailingGap: vertical ? 0 : Style.spaceReal(1.5)
@@ -927,7 +927,8 @@ Panel {
             root.workspaceBlock
           )
         }
-        readonly property real pad: Model.pillPad(root.cfg.pillPadding, Style.space(label === "" ? 3 : root.metrics.pad))
+        readonly property real pad: Model.pillPad(root.cfg.pillPadding,
+          Model.autoPillPad(Style.space(label === "" ? 3 : root.metrics.pad), root.pillThickness, root.cfg.pillShape))
 
         // Appear animation lives on the delegate: positioner add transitions
         // can be interrupted and leave items stuck half faded. No binding on

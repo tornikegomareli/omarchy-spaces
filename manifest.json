@@ -223,6 +223,16 @@
         "default": 0
       },
       {
+        "key": "pillShape",
+        "type": "enum",
+        "label": "Pill shape",
+        "options": [
+          "auto",
+          "oval"
+        ],
+        "default": "auto"
+      },
+      {
         "key": "settingsButton",
         "type": "enum",
         "label": "Settings button",

@@ -308,6 +308,22 @@ test("pillRadius and pillGap carry the widget rules", () => {
   assert.strictEqual(M.pillGap("junk"), 4)
 })
 
+test("oval pills get round ends and clear them with padding", () => {
+  assert.strictEqual(M.resolveSettings({}).pillShape, "auto")
+  assert.strictEqual(M.resolveSettings({ pillShape: "oval" }).pillShape, "oval")
+  assert.strictEqual(M.resolveSettings({ pillShape: "round" }).pillShape, "auto")
+  // Oval ignores the theme's rounding, so square windows can keep oval pills.
+  assert.strictEqual(M.pillRadius(26, false, "oval"), 13)
+  assert.strictEqual(M.pillRadius(21, true, "oval"), 11)
+  assert.strictEqual(M.pillRadius(20, true, "auto"), 6)
+  // The density padding grows to clear the ends, and a roomier one stays.
+  assert.strictEqual(M.autoPillPad(5, 26, "oval"), 8)
+  assert.strictEqual(M.autoPillPad(10, 26, "oval"), 10)
+  assert.strictEqual(M.autoPillPad(5, 26, "auto"), 5)
+  // An explicit padding still wins.
+  assert.strictEqual(M.pillPad(4, M.autoPillPad(5, 26, "oval")), 4)
+})
+
 test("normalizeAddress strips 0x and lowercases", () => {
   assert.strictEqual(M.normalizeAddress("0x624FAC"), "624fac")
   assert.strictEqual(M.normalizeAddress("624fac"), "624fac")
