@@ -564,6 +564,12 @@ Panel {
 
   function findDesktopEntry(appId) {
     if (!appId) return null
+    // An exact StartupWMClass wins over every guess: several web apps can share one host.
+    var wanted = String(appId).toLowerCase()
+    var all = DesktopEntries.applications.values
+    for (var k = 0; k < all.length; k++) {
+      if (String(all[k].startupClass || "").toLowerCase() === wanted) return all[k]
+    }
     var candidates = Model.appIdCandidates(appId)
     for (var c = 0; c < candidates.length; c++) {
       var byId = DesktopEntries.byId(candidates[c])
@@ -606,6 +612,10 @@ Panel {
     if (agent) return { source: Qt.resolvedUrl("assets/" + agent.icon + (agent.light && root.lightBar ? "-light" : "") + ".svg"), name: agent.name }
     var key = Model.appKey(appId)
     var label = String(title || "")
+    // A plain Chromium window shows its active tab's favicon when chromiumFavicons is enabled.
+    if (root.cfg.chromiumFavicons && key === "chromium" && root.faviconMap[label]) {
+      return { source: Util.fileUrl(root.faviconMap[label]), name: "Chromium" }
+    }
     // The shell hosts more than one app under its own id, so the title, not
     // the id, tells those windows apart; only they cache under a title key.
     var shellKey = key === "org.quickshell" && label !== ""
@@ -640,6 +650,61 @@ Panel {
     var existing = root.pendingIconIndex[name]
     if (!existing || Model.iconPathScore(path) > Model.iconPathScore(existing))
       root.pendingIconIndex[name] = path
+  }
+
+  // Chromium window title -> favicon PNG of the tab, via scripts/chromium-favicon (it reads Chromium's
+  // history and favicon files, copied first because Chromium locks them).
+  property var faviconMap: ({})
+  property var faviconPending: ({})
+  property string faviconTitles: ""
+  readonly property string faviconScript: Qt.resolvedUrl("scripts/chromium-favicon").toString().replace("file://", "")
+
+  function scanFavicons() {
+    if (!root.cfg.chromiumFavicons) return
+    var titles = []
+    for (var id in workspaceMap) {
+      var wins = workspaceMap[id].windows
+      for (var i = 0; i < wins.length; i++) {
+        if (Model.appKey(wins[i].appId) === "chromium" && wins[i].title !== "" &&
+            !root.faviconMap[wins[i].title] && titles.indexOf(wins[i].title) < 0)
+          titles.push(wins[i].title)
+      }
+    }
+    var joined = titles.join("\u0000")
+    if (joined === root.faviconTitles || faviconScan.running) return
+    root.faviconTitles = joined
+    faviconScan.command = [root.faviconScript].concat(titles)
+    faviconScan.running = titles.length > 0
+  }
+
+  onWorkspaceMapChanged: faviconDebounce.restart()
+
+  readonly property bool faviconsOn: cfg.chromiumFavicons
+  onFaviconsOnChanged: { faviconDebounce.restart(); root.invalidateIcons() }
+
+  Timer {
+    id: faviconDebounce
+    interval: 400
+    onTriggered: root.scanFavicons()
+  }
+
+  Process {
+    id: faviconScan
+    stdout: SplitParser {
+      onRead: function(line) {
+        var tab = line.lastIndexOf("\t")
+        if (tab > 0) root.faviconPending[line.substring(0, tab)] = line.substring(tab + 1)
+      }
+    }
+    onStarted: root.faviconPending = ({})
+    onExited: {
+      var merged = ({})
+      for (var title in root.faviconMap) merged[title] = root.faviconMap[title]
+      for (var title in root.faviconPending) merged[title] = root.faviconPending[title]
+      root.faviconMap = merged
+      root.invalidateIcons()
+      faviconDebounce.restart()
+    }
   }
 
   Process {
@@ -690,6 +755,7 @@ Panel {
     // Touching the list starts Quickshell's desktop-entry scan.
     DesktopEntries.applications.values
     iconScan.running = true
+    faviconDebounce.restart()
     Hyprland.refreshToplevels()
     root.syncMonitors()
   }
@@ -990,6 +1056,10 @@ Panel {
                 : pill.occupied ? Util.alpha(root.fg, 0.06)
                 : "transparent")
               : "transparent"
+          // Optional outline so a pill's number and icons read as one box. It follows the icons: only pills
+          // that show them get it, so with the default "hover" setting that is just the active workspace.
+          border.width: root.cfg.pillBorder && pill.showApps ? 1 : 0
+          border.color: Util.alpha(root.fg, pill.active ? 0.85 : 0.5)
           Behavior on color { enabled: root.fastDur > 0; ColorAnimation { duration: root.fastDur } }
         }
 

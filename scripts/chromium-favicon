@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+# chromium-favicon — maps Chromium window titles to the site favicon shown on that tab.
+# Why: Spaces shows the generic Chromium icon for every browser window; with the "Chromium tab favicons" setting
+#      on, it shows the tab's own icon instead.
+# How: window title (minus " - Chromium") -> newest History row with that title -> its page URL -> Favicons bitmap
+#      (exact page URL, else any page on the same host). History/Favicons are copied first because Chromium locks them.
+#      The profile is the one Chromium last used (Local State "profile.last_used"); set CHROMIUM_PROFILE to a profile
+#      folder to override. Only reads Chromium's files; nothing is sent anywhere.
+# Usage: chromium-favicon <title>...   prints "<title>\t<png path>" per hit; misses print nothing. PNGs cache in ~/.cache/spaces-favicons.
+import hashlib, json, os, shutil, sqlite3, sys, tempfile
+from urllib.parse import urlsplit
+
+def last_used_profile():
+    base = os.path.expanduser("~/.config/chromium")
+    try:
+        with open(os.path.join(base, "Local State")) as f:
+            name = json.load(f)["profile"]["last_used"]
+    except (OSError, ValueError, KeyError):
+        name = "Default"
+    return os.path.join(base, name)
+
+PROFILE = os.environ.get("CHROMIUM_PROFILE") or last_used_profile()
+CACHE = os.path.expanduser("~/.cache/spaces-favicons")
+os.makedirs(CACHE, exist_ok=True)
+
+def snapshot(name, tmp):
+    dst = os.path.join(tmp, name)
+    shutil.copy(os.path.join(PROFILE, name), dst)
+    return sqlite3.connect(dst)
+
+def best_bitmap(fav, pattern, exact):
+    op = "=" if exact else "LIKE"
+    return fav.execute(
+        f"SELECT b.image_data FROM icon_mapping m JOIN favicon_bitmaps b ON b.icon_id = m.icon_id "
+        f"WHERE m.page_url {op} ? AND b.image_data IS NOT NULL ORDER BY (b.width >= 32) DESC, b.width ASC LIMIT 1",
+        (pattern,),
+    ).fetchone()
+
+def main():
+    titles = sys.argv[1:]
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            hist, fav = snapshot("History", tmp), snapshot("Favicons", tmp)
+        except (OSError, sqlite3.Error):
+            return
+        for title in titles:
+            bare = title[: -len(" - Chromium")] if title.endswith(" - Chromium") else title
+            row = hist.execute("SELECT url FROM urls WHERE title = ? ORDER BY last_visit_time DESC LIMIT 1", (bare,)).fetchone()
+            if not row:  # Hyprland may cut long titles; fall back to a prefix match
+                esc = bare.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                row = hist.execute("SELECT url FROM urls WHERE title LIKE ? ESCAPE '\\' ORDER BY last_visit_time DESC LIMIT 1", (esc + "%",)).fetchone()
+            if not row:
+                continue
+            url = row[0]
+            img = best_bitmap(fav, url, True)
+            if not img:
+                parts = urlsplit(url)
+                img = best_bitmap(fav, f"{parts.scheme}://{parts.netloc}/%", False)
+            if not img:
+                continue
+            path = os.path.join(CACHE, hashlib.sha1(img[0]).hexdigest() + ".png")
+            if not os.path.exists(path):
+                with open(path, "wb") as f:
+                    f.write(img[0])
+            print(f"{title}\t{path}")
+
+main()

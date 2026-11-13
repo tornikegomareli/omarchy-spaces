@@ -146,6 +146,7 @@ Item {
           ToggleSetting { visible: root.cfg.showIcons; label: "Dim unfocused windows"; description: "On the active workspace"; key: "dimUnfocused" }
           ToggleSetting { visible: root.cfg.showIcons; label: "Show focused window title"; description: "Next to its icon"; key: "focusedTitle" }
           SliderSetting { visible: root.cfg.showIcons && root.cfg.focusedTitle; title: "TITLE LENGTH"; key: "titleLength"; minimum: 8; maximum: 60; suffix: " characters" }
+          ToggleSetting { visible: root.cfg.showIcons; label: "Chromium tab favicons"; description: "Opt in to reading Chromium's history and favicon files for browser tab icons"; key: "chromiumFavicons" }
           ToggleSetting { visible: root.cfg.showIcons; label: "Agent status"; description: "Badges on terminals running coding agents"; key: "agentStatus" }
           ToggleSetting { visible: root.cfg.showIcons; label: "Agent icons"; description: "Claude, Codex and Grok logos on terminals running them"; key: "agentIcons" }
 
@@ -300,6 +301,12 @@ Item {
               label: "Pill background"
               description: "Fill behind occupied and hovered workspaces"
               key: "pillBackground"
+            }
+
+            ToggleSetting {
+              label: "Pill border"
+              description: "Outline around a workspace's number and icons, so they read as one box"
+              key: "pillBorder"
             }
           }
 

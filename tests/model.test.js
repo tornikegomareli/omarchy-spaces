@@ -13,6 +13,16 @@ function test(name, fn) {
   try { fn(); console.log("ok   " + name) } catch (e) { failed++; console.log("FAIL " + name + "\n     " + e.message) }
 }
 
+test("pillBorder and chromiumFavicons are opt-in", () => {
+  const s = M.resolveSettings({})
+  assert.strictEqual(s.pillBorder, false)
+  assert.strictEqual(s.chromiumFavicons, false)
+  const on = M.resolveSettings({ pillBorder: true, chromiumFavicons: true })
+  assert.strictEqual(on.pillBorder, true)
+  assert.strictEqual(on.chromiumFavicons, true)
+  assert.strictEqual(M.resolveSettings({ pillBorder: "yes" }).pillBorder, false)
+})
+
 test("resolveSettings fills defaults and clamps", () => {
   const s = M.resolveSettings({ iconSize: 99, showApps: "bogus", persistentWorkspaces: -3, groupApps: "yes" })
   assert.strictEqual(s.iconSize, 24)

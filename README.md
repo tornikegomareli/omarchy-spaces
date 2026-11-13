@@ -188,6 +188,16 @@ Settings can also be set from a script:
 omarchy bar set tornikegomareli.spaces showApps all
 ```
 
+### Pill border
+
+Off by default. Turn on Appearance → Pill border to draw an outline around a workspace's number and icons, so they read as one box. It follows the icons: only pills that currently show icons get it, so with the default Show icons on setting (active or hovered) that is the active workspace, and with `all` it is every occupied workspace.
+
+### Chromium tab favicons
+
+Off by default. Opt in under Windows → Chromium tab favicons to show a plain Chromium window's active tab favicon instead of the generic Chromium icon. Web apps already use their launcher's icon; this is for ordinary browser windows.
+
+When enabled, it reads Chromium's own `History` and `Favicons` files in the profile Chromium used last (`~/.config/chromium/<profile>`, from `Local State`; set `CHROMIUM_PROFILE` to a profile folder to override). They are copied first because Chromium locks them, only the matching icon is cached under `~/.cache/spaces-favicons`, and nothing leaves your machine. Leave the setting off if you would rather Spaces never read those files. Chromium only: other browsers are not covered. See `scripts/chromium-favicon`.
+
 ### Return to the previous window
 
 Under **Behaviour → Clicking the focused app icon**, choose **Previous window**

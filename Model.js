@@ -19,6 +19,7 @@ var DEFAULTS = {
   activeStyle: "subtle",      // "subtle" | "solid" | "accent"
   iconHighlight: "tile",      // focused/hovered app: "tile" behind it | "dot" under it
   pillBackground: true,       // quiet fill behind occupied/hovered pills
+  pillBorder: false,          // outline around each pill that shows its icons, grouping number + icons
   labelStyle: "number",       // "number" | "glyph" | "none" | "custom"
   holdSuperNumbers: false,    // show workspace numbers while Super is held (needs bindings)
   animations: true,
@@ -40,6 +41,7 @@ var DEFAULTS = {
   previewSize: "medium",      // "small" | "medium" | "large"
   previewLive: true,          // keep previews streaming; false = one frame
   agentStatus: true,          // badges for coding agents running in terminals
+  chromiumFavicons: false,    // plain Chromium windows show their active tab's favicon (reads Chromium's history/favicon files)
   agentIcons: true,
   activeIcon: "",             // replaces the focused pill's label; empty = off
   wsIcon1: "", wsIcon2: "", wsIcon3: "", wsIcon4: "", wsIcon5: "",
@@ -92,6 +94,7 @@ function resolveSettings(raw) {
     activeStyle: oneOf(s.activeStyle, ACTIVE_STYLES, d.activeStyle),
     iconHighlight: oneOf(s.iconHighlight, ICON_HIGHLIGHTS, d.iconHighlight),
     pillBackground: bool(s.pillBackground, d.pillBackground),
+    pillBorder: bool(s.pillBorder, d.pillBorder),
     labelStyle: oneOf(s.labelStyle, LABEL_STYLES, d.labelStyle),
     holdSuperNumbers: bool(s.holdSuperNumbers, d.holdSuperNumbers),
     animations: bool(s.animations, d.animations),
@@ -113,6 +116,7 @@ function resolveSettings(raw) {
     previewSize: oneOf(s.previewSize, PREVIEW_SIZES, d.previewSize),
     previewLive: bool(s.previewLive, d.previewLive),
     agentStatus: bool(s.agentStatus, d.agentStatus),
+    chromiumFavicons: bool(s.chromiumFavicons, d.chromiumFavicons),
     agentIcons: bool(s.agentIcons, d.agentIcons),
     activeIcon: clipIconString(s.activeIcon, d.activeIcon),
     wsIcon1: clipIconString(s.wsIcon1, d.wsIcon1),
