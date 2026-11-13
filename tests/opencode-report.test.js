@@ -122,6 +122,57 @@ async function main() {
     assert.deepStrictEqual(seen, ["s1=working", "s1=end"])
   })
 
+  await test("a v2 permission prompt shows waiting in the TUI reporter", async () => {
+    const seen = []
+    let feed
+    const cleanup = await tuiMod.default.setup(
+      {
+        ui: {
+          router: { current: () => ({ type: "session", sessionID: "s1" }) },
+          tabs: { list: () => [] },
+        },
+        data: {
+          session: { root: (id) => id },
+          listen: (cb) => {
+            feed = cb
+            return () => {}
+          },
+        },
+      },
+      { send: (session, state) => seen.push(`${session}=${state}`) },
+    )
+    feed({ details: { type: "session.step.started", data: { sessionID: "s1" } } })
+    feed({ details: { type: "permission.v2.asked", data: { sessionID: "s1", id: "p1" } } })
+    await new Promise((resolve) => setTimeout(resolve, 1700))
+    feed({ details: { type: "permission.v2.replied", data: { sessionID: "s1", requestID: "p1" } } })
+    await cleanup()
+    assert.deepStrictEqual(seen, ["s1=working", "s1=waiting", "s1=working", "s1=end"])
+  })
+
+  await test("deleting a subagent session leaves its root's badge", async () => {
+    const seen = []
+    const cleanup = await tuiMod.default.setup(
+      {
+        ui: {
+          router: { current: () => ({ type: "session", sessionID: "s1" }) },
+          tabs: { list: () => [] },
+        },
+        data: {
+          session: { root: (id) => (id.startsWith("sub") ? "s1" : id) },
+          listen: (cb) => {
+            cb({ details: { type: "session.step.started", data: { sessionID: "s1" } } })
+            cb({ details: { type: "session.deleted", data: { sessionID: "sub-agent" } } })
+            cb({ details: { type: "session.tool.called", data: { sessionID: "s1" } } })
+            return () => {}
+          },
+        },
+      },
+      { send: (session, state) => seen.push(`${session}=${state}`) },
+    )
+    await cleanup()
+    assert.deepStrictEqual(seen, ["s1=working", "s1=end"])
+  })
+
   await test("a claimed session stays claimed after navigating away", async () => {
     const seen = []
     let route = { type: "session", sessionID: "s1" }

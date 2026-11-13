@@ -195,13 +195,18 @@ function createReporter(options = {}) {
     if (canonical) {
       const owner = canonical(session)
       if (!owner) return
+      // A subagent finishing deletes its own session while the root it
+      // reports under keeps running, so only the root's deletion ends it.
+      if (type === "session.deleted" && owner !== session) return
       session = owner
     }
     switch (type) {
       case "permission.asked":
+      case "permission.v2.asked":
         notePermission(session, properties.id)
         break
       case "permission.replied":
+      case "permission.v2.replied":
         noteReplied(session, properties.requestID)
         break
       case "session.status":
