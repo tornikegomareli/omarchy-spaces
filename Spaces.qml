@@ -642,6 +642,9 @@ Panel {
     if (hovered && pill.workspaceId !== root.currentWorkspaceId && pill.occupied) {
       previewHideTimer.stop()
       root.previewPill = pill
+      // Hyprland sends no event when a floating window moves or resizes,
+      // so re-read positions before the miniature draws them.
+      refreshDebounce.restart()
       if (root.previewOpen) {
         // Already showing: follow the pointer right away.
         root.previewWorkspaceId = pill.workspaceId
@@ -697,6 +700,7 @@ Panel {
     var pill = idx >= 0 ? pillRepeater.itemAt(idx) : null
     if (!pill || !pill.occupied) return false
     previewHideTimer.stop()
+    refreshDebounce.restart()
     root.previewPill = pill
     root.previewWorkspaceId = pill.workspaceId
     root.placePreviewAnchor(root.previewOpen)
