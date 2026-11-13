@@ -41,27 +41,30 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         try:
             hist, fav = snapshot("History", tmp), snapshot("Favicons", tmp)
+            lookup(hist, fav, titles)
         except (OSError, sqlite3.Error):
-            return
-        for title in titles:
-            bare = title[: -len(" - Chromium")] if title.endswith(" - Chromium") else title
-            row = hist.execute("SELECT url FROM urls WHERE title = ? ORDER BY last_visit_time DESC LIMIT 1", (bare,)).fetchone()
-            if not row:  # Hyprland may cut long titles; fall back to a prefix match
-                esc = bare.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-                row = hist.execute("SELECT url FROM urls WHERE title LIKE ? ESCAPE '\\' ORDER BY last_visit_time DESC LIMIT 1", (esc + "%",)).fetchone()
-            if not row:
-                continue
-            url = row[0]
-            img = best_bitmap(fav, url, True)
-            if not img:
-                parts = urlsplit(url)
-                img = best_bitmap(fav, f"{parts.scheme}://{parts.netloc}/%", False)
-            if not img:
-                continue
-            path = os.path.join(CACHE, hashlib.sha1(img[0]).hexdigest() + ".png")
-            if not os.path.exists(path):
-                with open(path, "wb") as f:
-                    f.write(img[0])
-            print(f"{title}\t{path}")
+            return  # a copy taken mid-write can be unreadable; the next scan retries
+
+def lookup(hist, fav, titles):
+    for title in titles:
+        bare = title[: -len(" - Chromium")] if title.endswith(" - Chromium") else title
+        row = hist.execute("SELECT url FROM urls WHERE title = ? ORDER BY last_visit_time DESC LIMIT 1", (bare,)).fetchone()
+        if not row:  # Hyprland may cut long titles; fall back to a prefix match
+            esc = bare.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            row = hist.execute("SELECT url FROM urls WHERE title LIKE ? ESCAPE '\\' ORDER BY last_visit_time DESC LIMIT 1", (esc + "%",)).fetchone()
+        if not row:
+            continue
+        url = row[0]
+        img = best_bitmap(fav, url, True)
+        if not img:
+            parts = urlsplit(url)
+            img = best_bitmap(fav, f"{parts.scheme}://{parts.netloc}/%", False)
+        if not img:
+            continue
+        path = os.path.join(CACHE, hashlib.sha1(img[0]).hexdigest() + ".png")
+        if not os.path.exists(path):
+            with open(path, "wb") as f:
+                f.write(img[0])
+        print(f"{title}\t{path}")
 
 main()

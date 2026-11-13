@@ -564,12 +564,6 @@ Panel {
 
   function findDesktopEntry(appId) {
     if (!appId) return null
-    // An exact StartupWMClass wins over every guess: several web apps can share one host.
-    var wanted = String(appId).toLowerCase()
-    var all = DesktopEntries.applications.values
-    for (var k = 0; k < all.length; k++) {
-      if (String(all[k].startupClass || "").toLowerCase() === wanted) return all[k]
-    }
     var candidates = Model.appIdCandidates(appId)
     for (var c = 0; c < candidates.length; c++) {
       var byId = DesktopEntries.byId(candidates[c])
