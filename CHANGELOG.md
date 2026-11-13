@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Appearance → Workspace label: with Custom labels, the icon fields move into
+  two collapsible groups, one for the focused workspace and a grid for
+  workspaces 1-10, instead of a long scrolling list.
+
 ## 1.6.0
 
 - Agent logos: a terminal running Claude Code, Codex or Grok shows that

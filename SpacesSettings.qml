@@ -12,6 +12,8 @@ Item {
   property color fg: Color.foreground
   property string fontFamily: Style.font.family
   property string section: "icons"
+  // Which workspace-icon accordion is open; one at a time, both closed by default.
+  property string labelGroup: ""
   property bool confirmingReset: false
   signal settingChanged(var delta)
   signal resetRequested()
@@ -177,51 +179,65 @@ Item {
             ]
           }
 
-          // ---- Workspace icons (label style "custom")
+          // ---- Workspace icons (label style "custom"). Two accordions keep the
+          // form short: the ten fields live in a grid instead of a scroll box.
           Column {
             width: parent.width
-            spacing: Style.space(12)
+            spacing: Style.space(8)
             visible: root.cfg.labelStyle === "custom"
 
             Text {
               width: parent.width
               wrapMode: Text.WordWrap
-              text: "Emoji or Nerd Font glyphs work. An empty field shows the workspace number."
+              text: "Emoji or Nerd Font glyphs. Empty fields fall back to the number."
               color: root.fg
               opacity: 0.7
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
             }
 
-            // Bounded scroll area: ten workspaces must not push the rest of
-            // the form (or the footer) off the panel.
-            Item {
+            AccordionHeader {
+              title: "Active workspace icon"
+              group: "active"
+            }
+
+            Column {
               width: parent.width
-              height: Math.min(iconFields.implicitHeight, Style.space(300))
+              spacing: Style.space(6)
+              visible: root.labelGroup === "active"
 
-              ScrollView {
-                id: iconScroll
-                anchors.fill: parent
-                clip: true
-                contentWidth: availableWidth
-                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                ScrollBar.vertical.policy: iconFields.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+              IconField { title: "ICON"; key: "activeIcon"; fieldWidth: Style.space(96) }
 
-                Column {
-                  id: iconFields
-                  width: iconScroll.availableWidth
-                  spacing: Style.space(12)
+              Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "Used by the focused workspace when it has no icon of its own."
+                color: root.fg
+                opacity: 0.7
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+            }
 
-                  TextSetting { title: "ACTIVE WORKSPACE"; key: "activeIcon" }
+            AccordionHeader {
+              title: "Workspaces 1-10"
+              group: "workspaces"
+            }
 
-                  Repeater {
-                    model: Math.max(0, root.cfg.persistentWorkspaces)
-                    delegate: TextSetting {
-                      required property int index
-                      title: "WORKSPACE " + (index + 1)
-                      key: "wsIcon" + (index + 1)
-                    }
-                  }
+            Grid {
+              id: iconGrid
+              width: parent.width
+              visible: root.labelGroup === "workspaces"
+              columns: 5
+              spacing: Style.space(8)
+
+              Repeater {
+                model: 10
+                delegate: IconField {
+                  required property int index
+                  title: String(index + 1)
+                  key: "wsIcon" + (index + 1)
+                  fieldWidth: (iconGrid.width - (iconGrid.columns - 1) * iconGrid.spacing) / iconGrid.columns
                 }
               }
             }
@@ -756,29 +772,53 @@ Item {
     }
   }
 
-
-
-  component TextSetting: Column {
+  // One-at-a-time accordion header for the workspace-icon fields.
+  component AccordionHeader: Button {
+    id: accordionHeader
     property string title: ""
-    property string key: ""
+    property string group: ""
+
+    readonly property bool expanded: root.labelGroup === accordionHeader.group
 
     width: parent ? parent.width : 0
-    spacing: Style.space(8)
+    leftAlign: true
+    text: (accordionHeader.expanded ? "▾  " : "▸  ") + accordionHeader.title
+    selected: accordionHeader.expanded
+    bordered: true
+    focusable: true
+    foreground: root.fg
+    fontFamily: root.fontFamily
+    fontSize: Style.font.bodySmall
+    onClicked: root.labelGroup = accordionHeader.expanded ? "" : accordionHeader.group
+  }
 
-    PanelSectionHeader {
-      text: parent.title
-      foreground: root.fg
-      fontFamily: root.fontFamily
+  // One compact icon field: a small caption and a short, centred box.
+  component IconField: Column {
+    id: iconField
+    property string title: ""
+    property string key: ""
+    property real fieldWidth: Style.space(96)
+
+    width: iconField.fieldWidth
+    spacing: Style.space(4)
+
+    Text {
+      text: iconField.title
+      color: root.fg
+      opacity: 0.7
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
     }
 
     TextField {
       width: parent.width
       activeFocusOnTab: true
       foreground: root.fg
-      text: root.cfg[key] || ""
+      horizontalAlignment: Text.AlignHCenter
+      text: root.cfg[iconField.key] || ""
       onEditingFinished: {
         var delta = ({})
-        delta[key] = text
+        delta[iconField.key] = text
         root.applySetting(delta)
       }
     }
