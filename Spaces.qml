@@ -573,9 +573,13 @@ Panel {
     if (value === "") return ""
     if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
     if (value.charAt(0) === "/") return Util.fileUrl(value)
+    // The icon theme first, like the rest of the desktop. The disk index
+    // ranks any SVG in any theme above the theme's own PNG, so it is only
+    // the fallback for icons the theme can't find.
+    var themed = Quickshell.iconPath(value, true)
+    if (themed) return themed
     var indexed = root.iconIndex[value]
-    if (indexed) return Util.fileUrl(indexed)
-    return Quickshell.iconPath(value, true)
+    return indexed ? Util.fileUrl(indexed) : ""
   }
 
   // Returns { source, name } for a window; cached until icons rescan. The

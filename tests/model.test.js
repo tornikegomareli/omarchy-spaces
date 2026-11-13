@@ -538,6 +538,15 @@ test("window titles and workspace labels render as plain text", () => {
   for (const b of titled) assert.match(b, /textFormat:\s*Text\.PlainText/, b.split("\n").find((l) => /text:/.test(l)).trim())
 })
 
+// The disk index ranks any SVG in any theme first, so asking it before the
+// icon theme showed hicolor's Nautilus under Yaru (#44).
+test("app icons ask the icon theme before the disk index", () => {
+  const qml = fs.readFileSync(path.join(__dirname, "..", "Spaces.qml"), "utf8")
+  const body = qml.slice(qml.indexOf("function iconUrl("), qml.indexOf("function appInfo("))
+  assert.ok(body.indexOf("Quickshell.iconPath") > 0)
+  assert.ok(body.indexOf("Quickshell.iconPath") < body.indexOf("iconIndex"))
+})
+
 test("agentAppId recognises Claude Code, Codex and Grok terminals", () => {
   const g = "com.mitchellh.ghostty"
   assert.strictEqual(M.agentAppId(g, "\u25d1 Omarchy plugin skills"), "agent.claude")
