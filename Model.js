@@ -17,6 +17,7 @@ var DEFAULTS = {
   focusedTitle: false,        // show the focused window's title next to its icon
   titleLength: 24,
   activeStyle: "subtle",      // "subtle" | "solid" | "accent"
+  iconHighlight: "tile",      // focused/hovered app: "tile" behind it | "dot" under it
   pillBackground: true,       // quiet fill behind occupied/hovered pills
   labelStyle: "number",       // "number" | "glyph" | "none" | "custom"
   holdSuperNumbers: false,    // show workspace numbers while Super is held (needs bindings)
@@ -53,6 +54,7 @@ var ACTIVE_ICON_CLICKS = ["cycle", "previous"]
 var SETTINGS_BUTTONS = ["hover", "always", "never"]
 var PREVIEW_SIZES = ["small", "medium", "large"]
 var ACTIVE_STYLES = ["subtle", "solid", "accent"]
+var ICON_HIGHLIGHTS = ["tile", "dot"]
 var LABEL_STYLES = ["number", "glyph", "none", "custom"]
 var SPEEDS = ["slow", "normal", "fast"]
 
@@ -87,6 +89,7 @@ function resolveSettings(raw) {
     focusedTitle: bool(s.focusedTitle, d.focusedTitle),
     titleLength: clampInt(s.titleLength, 8, 60, d.titleLength),
     activeStyle: oneOf(s.activeStyle, ACTIVE_STYLES, d.activeStyle),
+    iconHighlight: oneOf(s.iconHighlight, ICON_HIGHLIGHTS, d.iconHighlight),
     pillBackground: bool(s.pillBackground, d.pillBackground),
     labelStyle: oneOf(s.labelStyle, LABEL_STYLES, d.labelStyle),
     holdSuperNumbers: bool(s.holdSuperNumbers, d.holdSuperNumbers),

@@ -59,6 +59,16 @@
         "default": "subtle"
       },
       {
+        "key": "iconHighlight",
+        "type": "enum",
+        "label": "Focused app highlight",
+        "options": [
+          "tile",
+          "dot"
+        ],
+        "default": "tile"
+      },
+      {
         "key": "pillBackground",
         "type": "bool",
         "label": "Pill background",

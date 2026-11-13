@@ -170,6 +170,15 @@ Item {
           }
 
           ChoiceSetting {
+            title: "FOCUSED APP"
+            key: "iconHighlight"
+            options: [
+              { value: "tile", label: "Tile" },
+              { value: "dot", label: "Dot" }
+            ]
+          }
+
+          ChoiceSetting {
             title: "WORKSPACE LABEL"
             key: "labelStyle"
             options: [

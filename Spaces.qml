@@ -1057,13 +1057,16 @@ Panel {
                   readonly property var info: item ? root.appInfo(item.appId, item.title) : ({ source: "", name: "" })
                   readonly property bool focusedHere: !!item && item.focused && pill.active
                   readonly property bool highlightFocused: focusedHere && pill.itemKeys.length > 1
+                  readonly property bool flat: root.cfg.iconHighlight === "dot"
                   readonly property string titleText: root.cfg.focusedTitle && focusedHere && !root.vertical
                     ? Model.focusedLabel(item, info.nameless && item.title ? "" : info.name, root.cfg.titleLength) : ""
                   readonly property bool hovered: iconMouse.containsMouse
                   readonly property string agentState: item ? root.agentStateFor(item.addresses) : ""
 
                   implicitWidth: iconRow.implicitWidth + Style.space(4)
-                  implicitHeight: Math.max(root.iconPx, iconRow.implicitHeight) + Style.space(4)
+                  // Dot mode grows the box evenly, so the clipped strip leaves
+                  // room for the dot without moving the icon.
+                  implicitHeight: Math.max(root.iconPx, iconRow.implicitHeight) + Style.space(flat ? 8 : 4)
                   width: implicitWidth
                   height: implicitHeight
                   property real dim: root.cfg.dimUnfocused && pill.active && !focusedHere && !hovered ? 0.5 : 1
@@ -1078,8 +1081,21 @@ Panel {
                   Rectangle {
                     anchors.fill: parent
                     radius: Style.cornerRadius > 0 ? Style.space(5) : 0
-                    color: appIcon.highlightFocused || appIcon.hovered ? Util.alpha(pill.textColor, 0.18) : "transparent"
+                    color: !appIcon.flat && (appIcon.highlightFocused || appIcon.hovered) ? Util.alpha(pill.textColor, 0.18) : "transparent"
                     Behavior on color { enabled: root.fastDur > 0; ColorAnimation { duration: root.fastDur } }
+                  }
+
+                  // Dock-style dot under the focused app, in place of the tile.
+                  // The accent would vanish on an accent pill, so other styles
+                  // use the pill's text colour.
+                  Rectangle {
+                    visible: appIcon.flat && appIcon.highlightFocused
+                    x: iconRow.x + Math.round((root.iconPx - width) / 2)
+                    y: Math.round(iconRow.y + root.iconPx + Style.space(1))
+                    width: Math.round(Style.space(5))
+                    height: Math.max(2, Math.round(Style.space(2)))
+                    radius: height / 2
+                    color: root.cfg.activeStyle === "subtle" ? Color.accent : pill.textColor
                   }
 
                   Row {

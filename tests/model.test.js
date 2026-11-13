@@ -308,6 +308,12 @@ test("pillRadius and pillGap carry the widget rules", () => {
   assert.strictEqual(M.pillGap("junk"), 4)
 })
 
+test("the focused app keeps its tile unless the dot is picked", () => {
+  assert.strictEqual(M.resolveSettings({}).iconHighlight, "tile")
+  assert.strictEqual(M.resolveSettings({ iconHighlight: "dot" }).iconHighlight, "dot")
+  assert.strictEqual(M.resolveSettings({ iconHighlight: "marker" }).iconHighlight, "tile")
+})
+
 test("oval pills get round ends and clear them with padding", () => {
   assert.strictEqual(M.resolveSettings({}).pillShape, "auto")
   assert.strictEqual(M.resolveSettings({ pillShape: "oval" }).pillShape, "oval")
