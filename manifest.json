@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "tornikegomareli.spaces",
   "name": "Spaces",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "author": "Tornike Gomareli",
   "description": "Workspace switcher that shows the apps open on each workspace",
   "kinds": [

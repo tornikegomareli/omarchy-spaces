@@ -1,17 +1,38 @@
 # Changelog
 
-## Unreleased
+## 1.7.0
 
-- Appearance → Workspace label: with Custom labels, the icon fields move into
-  two collapsible groups, one for the focused workspace and a grid for
-  workspaces 1-10, instead of a long scrolling list.
-- Pill border: an opt-in setting that outlines a workspace's number and icons
-  so they read as one box. It follows the icons, so by default only the active
-  workspace gets it
-- Chromium tab favicons: an opt-in setting that shows a plain Chromium
-  window's active tab favicon instead of the generic Chromium icon. It reads
-  Chromium's own history and favicon files from the last-used profile
-  (`scripts/chromium-favicon`)
+- Clicking an app icon or a preview thumbnail raises the window above other
+  floating windows. Before, a window behind a maximized floating one got
+  focus but stayed hidden (from #35, @rugobal; tested by @felipecpaiva)
+- Agent status for OpenCode 2.x: its server plugins run outside your
+  terminal, so a TUI plugin, `hooks/opencode-tui.js`, reports instead. See the
+  README for the two links. OpenCode 1.4 and newer 1.x keep the existing
+  plugin (#26, @imranZERO)
+- Pill shape: Appearance → Pill shape → Oval gives the pills round ends
+  whatever your window rounding (#43, @DukeOfContention)
+- Focused app: Appearance → Focused app → Dot drops the tiles behind app
+  icons and marks the focused app with a small dot under it, like a dock
+  (#46, @DukeOfContention)
+- Behaviour → Move pointer to clicked window: turn it off and clicking an app
+  icon or thumbnail leaves the pointer where you clicked (#38, @alanhogan)
+- Opt-in pill border, and opt-in Chromium tab favicons for plain Chromium
+  windows, read from Chromium's own history and favicon files
+  (#29, @JuanSombrero23)
+- Custom workspace labels sit in two collapsible groups, with the ten
+  workspaces in a grid instead of a long scrolling list (#53, @pwn27sbx)
+- App icons follow your icon theme. Before, any SVG in any installed theme
+  won over the theme's own icon, so Yaru showed hicolor's Nautilus
+  (#44, @DukeOfContention)
+- Previews show floating windows where they are now, not where they were
+  before you moved or resized them (#52, @felipecpaiva)
+- The focused title shows the window title for apps with no desktop entry,
+  such as Omarchy's terminal apps, instead of their class, `TUI.tile`
+  (#51, @felipecpaiva)
+- Per-monitor workspaces: a workspace switch on a monitor without focus
+  shows on its own bar, and a monitor switched off and on again gets its own
+  workspaces back instead of every monitor's (#42, @G-Pappas;
+  #48, @VulpesZerda27)
 
 ## 1.6.0
 
