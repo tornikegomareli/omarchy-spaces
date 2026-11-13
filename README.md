@@ -231,8 +231,8 @@ Closed windows are skipped; if there is no previous window, focus stays put.
 Focus history starts when Spaces loads.
 
 Hyprland moves the pointer onto a window it focuses, so clicking an app icon
-moves it off the bar. Turn off **Behaviour → Move the pointer to a clicked
-window** to keep it where you clicked.
+moves it off the bar. Turn off **Behaviour → Move pointer to clicked window**
+to keep it where you clicked.
 
 ### Show numbers while holding Super
 

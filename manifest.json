@@ -185,7 +185,7 @@
       {
         "key": "movePointer",
         "type": "bool",
-        "label": "Move the pointer to a clicked window",
+        "label": "Move pointer to clicked window",
         "default": true
       },
       {

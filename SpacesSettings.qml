@@ -408,7 +408,7 @@ Item {
           ToggleSetting { label: "Scroll to switch workspaces"; key: "scrollSwitch" }
           ToggleSetting { label: "Middle-click icon closes window"; key: "middleClickClose" }
           ToggleSetting {
-            label: "Move the pointer to a clicked window"
+            label: "Move pointer to clicked window"
             description: "Off keeps it where you clicked"
             key: "movePointer"
           }
