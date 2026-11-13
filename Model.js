@@ -27,6 +27,7 @@ var DEFAULTS = {
   iconStyle: "color",         // "color" | "mono"
   urgentHighlight: true,      // pulse workspaces whose windows ask for attention
   middleClickClose: false,    // middle-click an icon closes that window
+  movePointer: true,          // Hyprland moves the pointer onto a window it focuses
   tooltips: true,
   density: "normal",          // "compact" | "normal" | "roomy"
   pillHeight: 0,              // px; 0 = automatic (bar height minus the usual inset)
@@ -99,6 +100,7 @@ function resolveSettings(raw) {
     iconStyle: oneOf(s.iconStyle, ICON_STYLES, d.iconStyle),
     urgentHighlight: bool(s.urgentHighlight, d.urgentHighlight),
     middleClickClose: bool(s.middleClickClose, d.middleClickClose),
+    movePointer: bool(s.movePointer, d.movePointer),
     tooltips: bool(s.tooltips, d.tooltips),
     density: oneOf(s.density, DENSITIES, d.density),
     pillHeight: clampInt(s.pillHeight, 0, PILL_LIMITS.heightMax, d.pillHeight),

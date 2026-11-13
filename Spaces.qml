@@ -402,10 +402,22 @@ Panel {
 
   function focusWindow(address) {
     var target = "address:0x" + String(address).replace(/^0x/, "")
-    run("(hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"" + target + "\" })")
+    var focus = "hl.dsp.focus({ window = \"" + target + "\" })"
+    var raise = "hl.dsp.window.alter_zorder({ window = \"" + target + "\", mode = \"top\" })"
+    var dispatch = "(hyprctl dispatch " + Util.shellQuote(focus)
       + " >/dev/null 2>&1 || hyprctl dispatch focuswindow " + Util.shellQuote(target) + ")"
-      + " && (hyprctl dispatch " + Util.shellQuote("hl.dsp.window.alter_zorder({ window = \"" + target + "\", mode = \"top\" })")
-      + " >/dev/null 2>&1 || hyprctl dispatch alterzorder " + Util.shellQuote("top," + target) + ")")
+      + " && (hyprctl dispatch " + Util.shellQuote(raise)
+      + " >/dev/null 2>&1 || hyprctl dispatch alterzorder " + Util.shellQuote("top," + target) + ")"
+    if (root.cfg.movePointer) {
+      run(dispatch)
+      return
+    }
+    // Hyprland moves the pointer onto the window it focuses. One Lua call
+    // focuses, raises and puts the pointer back before a frame is drawn.
+    // eval exits 0 on errors too, so only its "ok" reply skips the fallback.
+    var lua = "local p = hl.get_cursor_pos(); hl.dispatch(" + focus + "); hl.dispatch(" + raise + ");"
+      + " if p then hl.dispatch(hl.dsp.cursor.move({ x = p.x, y = p.y })) end"
+    run("[ \"$(hyprctl eval " + Util.shellQuote(lua) + " 2>&1)\" = ok ] || " + dispatch)
   }
 
   function closeWindow(address) {

@@ -204,6 +204,10 @@ behavior for grouped apps. **Previous window** takes precedence over cycling.
 Closed windows are skipped; if there is no previous window, focus stays put.
 Focus history starts when Spaces loads.
 
+Hyprland moves the pointer onto a window it focuses, so clicking an app icon
+moves it off the bar. Turn off **Behaviour → Move the pointer to a clicked
+window** to keep it where you clicked.
+
 ### Show numbers while holding Super
 
 Off by default. When on, the workspace numbers appear while you hold Super, so you can see which workspace an app is on even if labels are set to None or Glyph. They hide again when you release Super or switch workspace.

@@ -111,7 +111,13 @@ Window {
         "Unfocused icon did not target its own window: " + sent)
       check(sent.indexOf("top,address:0x" + current) !== -1,
         "Icon's window was not raised using the target address: " + sent)
-      console.log("PASS: focused icon returns to previous live window; unfocused icon focuses its own window")
+      check(sent.indexOf("cursor.move") === -1, "Pointer restored while movePointer is on: " + sent)
+      widget.settings = Object.assign({}, widget.settings, {movePointer: false})
+      sent = sentBy(function() { widget.activateItem(icon) })
+      check(sent.indexOf("hyprctl eval") !== -1 && sent.indexOf("get_cursor_pos") < sent.indexOf("cursor.move")
+        && sent.indexOf("|| (hyprctl dispatch") !== -1 && sent.indexOf("address:0x" + current) !== -1,
+        "movePointer off did not focus in one Lua call that restores the pointer: " + sent)
+      console.log("PASS: focused icon returns to previous live window; unfocused icon focuses its own window; pointer can stay")
     }
     function workspaceEdges() {
       var workspace = widget.workspaceIds.filter(function(id) { return id !== widget.currentWorkspaceId })[0]

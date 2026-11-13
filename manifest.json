@@ -177,6 +177,12 @@
         "default": false
       },
       {
+        "key": "movePointer",
+        "type": "bool",
+        "label": "Move the pointer to a clicked window",
+        "default": true
+      },
+      {
         "key": "activeClick",
         "type": "enum",
         "label": "Clicking the active workspace",
