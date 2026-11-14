@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.8.0
+
+- Hovering an app icon highlights all its windows in the preview and brings
+  its floating thumbnail to the front. It stays in front while you move into
+  the preview, so you can click it. Clicking an app icon closes the preview
+  (#58, from #35, @rugobal)
+- Previews → Preview current workspace, off by default, previews the
+  workspace you are on too (#58, @rugobal)
+- Behaviour → Keep an open scratchpad, off by default: while a scratchpad has
+  focus, clicking a window switches the workspace under it and keeps the
+  scratchpad open. Scratchpad windows also stay out of the previous-window
+  history (#59, @rugobal)
+- Previous window: switching to a window on another workspace no longer makes
+  that workspace's last window "previous", so a second click goes back to
+  where you came from (#57, @rugobal)
+- Previous window: a grouped app icon cycles its windows, as in Cycles
+  windows. Previous window applies to icons with one window
+  (#56, @rugobal)
+- Clicking a window focuses it in one Hyprland call and raises it only if it
+  floats
+
 ## 1.7.0
 
 - Clicking an app icon or a preview thumbnail raises the window above other
