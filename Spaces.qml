@@ -1093,7 +1093,7 @@ Panel {
             opacity: pill.occupied || pill.active ? 1 : 0.5
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
-            font.bold: pill.active
+            font.bold: pill.active && root.cfg.boldActive
             Behavior on color { enabled: root.fastDur > 0; ColorAnimation { duration: root.fastDur } }
             Behavior on opacity { enabled: root.fastDur > 0; NumberAnimation { duration: root.fastDur } }
           }

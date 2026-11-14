@@ -170,6 +170,12 @@ Item {
             ]
           }
 
+          ToggleSetting {
+            label: "Bold active workspace"
+            description: "Draw the active workspace's number or glyph in bold"
+            key: "boldActive"
+          }
+
           ChoiceSetting {
             title: "FOCUSED APP"
             key: "iconHighlight"
@@ -649,7 +655,7 @@ Item {
             opacity: parent.active ? 1 : 0.5
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
-            font.bold: parent.active
+            font.bold: parent.active && root.cfg.boldActive
           }
         }
       }
