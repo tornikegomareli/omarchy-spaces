@@ -189,6 +189,12 @@
         "default": true
       },
       {
+        "key": "keepScratchpad",
+        "type": "bool",
+        "label": "Keep an open scratchpad",
+        "default": false
+      },
+      {
         "key": "activeClick",
         "type": "enum",
         "label": "Clicking the active workspace",

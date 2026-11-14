@@ -121,7 +121,14 @@ Window {
       check(sent.indexOf("hyprctl eval") !== -1 && sent.indexOf("get_cursor_pos") < sent.indexOf("cursor.move")
         && sent.indexOf("|| (hyprctl dispatch") !== -1 && sent.indexOf("address:0x" + current) !== -1,
         "movePointer off did not focus in one Lua call that restores the pointer: " + sent)
-      console.log("PASS: focused icon returns to previous live window; unfocused icon focuses its own window; pointer can stay")
+      check(sent.indexOf("set_workspace") === -1, "Scratchpad switch sent while keepScratchpad is off: " + sent)
+      widget.settings = Object.assign({}, widget.settings, {movePointer: true, keepScratchpad: true})
+      sent = sentBy(function() { widget.activateItem(icon) })
+      check(sent.indexOf("active_special_workspace") !== -1 && sent.indexOf("set_workspace") !== -1
+        && sent.indexOf("cursor.move") === -1 && sent.indexOf("|| (hyprctl dispatch") !== -1,
+        "keepScratchpad did not switch the workspace under an open scratchpad: " + sent)
+      widget.settings = Object.assign({}, widget.settings, {keepScratchpad: false})
+      console.log("PASS: focused icon returns to previous live window; unfocused icon focuses its own window; pointer can stay; scratchpad can stay")
     }
     function crossWorkspaceFocusHistory() {
       var current = widget.backgroundWindowAddress()

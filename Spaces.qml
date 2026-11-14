@@ -392,7 +392,6 @@ Panel {
     root.revision
     var values = Hyprland.workspaces.values
     var activeToplevel = Hyprland.activeToplevel
-    var activeAddress = root.backgroundWindowAddress()
     var perMonitor = cfg.perMonitor && root.monitor !== null
     var map = ({})
 
@@ -410,8 +409,7 @@ Panel {
           address: String(tl.address),
           appId: root.cfg.agentIcons ? Model.agentAppId(root.appIdOf(tl), tl.title) : root.appIdOf(tl),
           title: String(tl.title || ""),
-          focused: activeAddress ? Model.normalizeAddress(tl.address) === activeAddress
-            : activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
+          focused: activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
           at: ipc.at && ipc.at.length === 2 ? [ipc.at[0], ipc.at[1]] : null,
           size: ipc.size && ipc.size.length === 2 ? [ipc.size[0], ipc.size[1]] : null,
           floating: ipc.floating === true,
@@ -455,22 +453,18 @@ Panel {
       windowFocusTimeout.stop()
       root.rememberFocusedWindow()
     }
-    var target = "address:0x" + String(address).replace(/^0x/, "")
-    var focus = "hl.dsp.focus({ window = \"" + target + "\" })"
-    var raise = "hl.dsp.window.alter_zorder({ window = \"" + target + "\", mode = \"top\" })"
-    var dispatch = "(hyprctl dispatch " + Util.shellQuote(focus)
+    var target = "address:0x" + key
+    var lua = Model.focusWindowLua(target, {
+      keepPointer: !root.cfg.movePointer,
+      keepScratchpad: root.cfg.keepScratchpad,
+      event: root.moduleName + ":background:" + key
+    })
+    var dispatch = "(hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"" + target + "\" })")
       + " >/dev/null 2>&1 || hyprctl dispatch focuswindow " + Util.shellQuote(target) + ")"
-      + " && (hyprctl dispatch " + Util.shellQuote(raise)
+      + " && (hyprctl dispatch " + Util.shellQuote("hl.dsp.window.alter_zorder({ window = \"" + target + "\", mode = \"top\" })")
       + " >/dev/null 2>&1 || hyprctl dispatch alterzorder " + Util.shellQuote("top," + target) + ")"
-    if (root.cfg.movePointer) {
-      run(dispatch)
-      return
-    }
-    // Hyprland moves the pointer onto the window it focuses. One Lua call
-    // focuses, raises and puts the pointer back before a frame is drawn.
-    // eval exits 0 on errors too, so only its "ok" reply skips the fallback.
-    var lua = "local p = hl.get_cursor_pos(); hl.dispatch(" + focus + "); hl.dispatch(" + raise + ");"
-      + " if p then hl.dispatch(hl.dsp.cursor.move({ x = p.x, y = p.y })) end"
+    // eval exits 0 on errors too, so anything but its "ok" reply (a hyprlang
+    // config, a window that just closed) falls back to the plain dispatchers.
     run("[ \"$(hyprctl eval " + Util.shellQuote(lua) + " 2>&1)\" = ok ] || " + dispatch)
   }
 
