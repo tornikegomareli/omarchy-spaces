@@ -156,7 +156,7 @@ Panel {
     if (root.lastWorkspaceId > 0 && root.lastWorkspaceId !== root.currentWorkspaceId)
       root.previousWorkspaceId = root.lastWorkspaceId
     root.lastWorkspaceId = root.currentWorkspaceId
-    if (root.currentWorkspaceId === root.previewWorkspaceId) root.hidePreview()
+    if (root.currentWorkspaceId === root.previewWorkspaceId && !root.cfg.previewActive) root.hidePreview()
   }
 
   // Addresses (normalized) of windows that requested attention and have not
@@ -464,6 +464,7 @@ Panel {
   }
 
   function activateItem(item) {
+    root.hidePreview()
     root.rememberFocusedWindow()
     var target = Model.iconClickTarget(item, root.cfg.activeIconClick,
       root.windowFocusHistory, root.liveWindowAddresses())
@@ -785,20 +786,69 @@ Panel {
 
   // ------------------------------------------------------------ previews
 
-  // Hovering a pill of another workspace shows a live miniature of it. One
+  // Hovering a workspace pill shows a live miniature of it. One
   // card serves every pill and slides between them.
   property int previewWorkspaceId: -1
   property Item previewPill: null
   property bool previewWanted: false
   property string highlightAddress: ""
+  property var highlightAddresses: []
+  property int highlightWorkspaceId: -1
+  property bool previewHandoffPending: false
+  property string handoffCandidate: ""
+
+  function clearPreviewHighlight() {
+    root.highlightAddress = ""
+    root.highlightAddresses = []
+    root.highlightWorkspaceId = -1
+    root.previewHandoffPending = false
+    root.handoffCandidate = ""
+    handoffTimer.stop()
+  }
+
+  // Hover selection inside the preview; a group that doesn't hold the
+  // window is dropped. The selection is kept after the pointer leaves, so
+  // overlapping thumbnails cannot swap back under it as their z-order changes.
+  function selectThumbnail(address) {
+    root.previewHandoffPending = false
+    root.handoffCandidate = ""
+    handoffTimer.stop()
+    root.highlightWorkspaceId = root.previewWorkspaceId
+    if (root.highlightAddresses.indexOf(address) === -1) root.highlightAddresses = []
+    root.highlightAddress = address
+  }
+
+  // On the way from an app icon to its thumbnail the pointer can cross
+  // another thumbnail's exposed edge, which must not take the selection.
+  // Resting on that thumbnail means the pointer went there on purpose.
+  Timer {
+    id: handoffTimer
+    interval: 300
+    onTriggered: if (root.previewHandoffPending && root.handoffCandidate) root.selectThumbnail(root.handoffCandidate)
+  }
+
+  onPreviewWorkspaceIdChanged: {
+    if (root.highlightWorkspaceId !== root.previewWorkspaceId) root.clearPreviewHighlight()
+  }
 
   readonly property bool previewOpen: previewWanted && previewWorkspaceId > 0 && !root.opened
     && root.cfg.previews && !!root.workspaceMap[previewWorkspaceId]
     && root.workspaceMap[previewWorkspaceId].windows.length > 0
 
+  function hoverPreviewAllowed(pill) {
+    return root.cfg.previews && !!pill && pill.occupied
+      && (root.cfg.previewActive || pill.workspaceId !== root.currentWorkspaceId)
+  }
+
+  onCfgChanged: {
+    if (root.previewWanted && (!root.cfg.previews
+        || (!root.cfg.previewActive && root.previewWorkspaceId === root.currentWorkspaceId)))
+      root.hidePreview()
+  }
+
   function pillHovered(pill, hovered) {
     if (!root.cfg.previews) return
-    if (hovered && pill.workspaceId !== root.currentWorkspaceId && pill.occupied) {
+    if (hovered && root.hoverPreviewAllowed(pill)) {
       previewHideTimer.stop()
       root.previewPill = pill
       // Hyprland sends no event when a floating window moves or resizes,
@@ -820,8 +870,9 @@ Panel {
   function hidePreview() {
     previewShowTimer.stop()
     previewHideTimer.stop()
+    peekTimer.stop()
     root.previewWanted = false
-    root.highlightAddress = ""
+    root.clearPreviewHighlight()
   }
 
   function placePreviewAnchor(animate) {
@@ -839,7 +890,7 @@ Panel {
     id: previewShowTimer
     interval: 380
     onTriggered: {
-      if (!root.previewPill) return
+      if (!root.hoverPreviewAllowed(root.previewPill)) return
       root.previewWorkspaceId = root.previewPill.workspaceId
       root.placePreviewAnchor(false)
       root.previewWanted = true
@@ -849,7 +900,9 @@ Panel {
   Timer {
     id: previewHideTimer
     interval: 200
-    onTriggered: if (!preview.containsMouse) root.hidePreview()
+    onTriggered: {
+      if (!preview.containsMouse && !(root.previewPill && root.previewPill.hovered)) root.hidePreview()
+    }
   }
 
   // Opens the preview for a workspace without hovering, e.g. from a
@@ -1398,14 +1451,24 @@ Panel {
                     }
                     onWheel: function(wheel) { root.scrollBy(wheel.angleDelta.y || wheel.angleDelta.x) }
                     onContainsMouseChanged: {
-                      root.highlightAddress = containsMouse && appIcon.item ? appIcon.item.address : ""
                       if (containsMouse && appIcon.item) {
+                        // Crossing app icons does not re-enter the workspace
+                        // pill. Resume previews after a click dismissed one.
+                        if (!root.previewOpen) root.pillHovered(pill, true)
+                        root.highlightWorkspaceId = pill.workspaceId
+                        root.highlightAddress = appIcon.item.address
+                        root.highlightAddresses = appIcon.item.addresses || [appIcon.item.address]
+                        root.previewHandoffPending = true
                         var tip = appIcon.item.title || appIcon.info.name
                         if (appIcon.item.count > 1) tip = appIcon.info.name + " (" + appIcon.item.count + " windows)"
                         var agentText = { working: "Agent working", waiting: "Agent needs your input", done: "Agent finished" }[appIcon.agentState]
                         if (agentText) tip = agentText + " \u00b7 " + tip
                         if (!root.previewOpen) root.showTip(appIcon, tip)
                       } else {
+                        // Keep the thumbnail raised while crossing into the
+                        // preview, including the gap between it and the bar.
+                        if (!root.previewOpen && appIcon.item
+                            && root.highlightAddress === appIcon.item.address) root.clearPreviewHighlight()
                         root.hideTip(appIcon)
                       }
                     }
@@ -1614,14 +1677,17 @@ Panel {
           required property var modelData
           readonly property var rect: mini.rects[modelData] || null
           readonly property var win: root.windowByAddress(modelData)
-          readonly property bool highlighted: root.highlightAddress === modelData || thumbMouse.containsMouse
+          readonly property bool highlighted: root.highlightAddress === modelData || root.highlightAddresses.indexOf(modelData) !== -1 || thumbMouse.containsMouse
           readonly property real inset: Style.space(2)
 
           x: rect ? rect.x + inset : 0
           y: rect ? rect.y + inset : 0
           width: rect ? Math.max(2, rect.width - inset * 2) : 0
           height: rect ? Math.max(2, rect.height - inset * 2) : 0
-          z: rect && rect.floating ? 1 : 0
+          // Keep the selected app above other thumbnails crossed on the way
+          // in, with one member of a group as the top hit target.
+          z: rect && rect.floating ? (root.highlightAddress === modelData ? 4
+            : root.highlightAddresses.indexOf(modelData) !== -1 ? 3 : thumbMouse.containsMouse ? 2 : 1) : 0
 
           Behavior on x { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
           Behavior on y { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
@@ -1683,8 +1749,17 @@ Panel {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onContainsMouseChanged: {
-              if (containsMouse) root.highlightAddress = thumb.modelData
-              else if (root.highlightAddress === thumb.modelData) root.highlightAddress = ""
+              if (!containsMouse) {
+                if (root.handoffCandidate === thumb.modelData) {
+                  root.handoffCandidate = ""
+                  handoffTimer.stop()
+                }
+              } else if (root.previewHandoffPending && root.highlightAddresses.indexOf(thumb.modelData) === -1) {
+                root.handoffCandidate = thumb.modelData
+                handoffTimer.restart()
+              } else {
+                root.selectThumbnail(thumb.modelData)
+              }
             }
             onClicked: {
               root.focusWindow(thumb.modelData)

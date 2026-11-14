@@ -10,7 +10,13 @@ Spaces is a workspace switcher for the [Omarchy](https://omarchy.org) bar. Each 
 
 ## Peek before you jump
 
-Hover another workspace to see it live, laid out the way it is on screen. Click a window in the preview to jump to it.
+Hover another workspace to see it live, laid out the way it is on screen. Click a window in the preview to jump to it. Hovering an app icon highlights its windows and brings its floating thumbnail to the front, where it stays as you move into the preview. Clicking an app icon closes the preview.
+
+**Previews → Preview current workspace**, off by default, previews the workspace you are on too:
+
+```sh
+omarchy bar set tornikegomareli.spaces previewActive true --json
+```
 
 Previews follow the monitor's orientation, including portrait displays, and shrink to fit the available screen space while keeping the full workspace visible. The size setting controls the longest side, so portrait and landscape previews have a comparable size.
 

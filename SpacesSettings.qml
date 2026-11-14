@@ -362,6 +362,13 @@ Item {
             key: "previews"
           }
 
+          ToggleSetting {
+            visible: root.cfg.previews
+            label: "Preview current workspace"
+            description: "Also show previews when hovering the current workspace or its app icons"
+            key: "previewActive"
+          }
+
           ChoiceSetting {
             visible: root.cfg.previews
             title: "PREVIEW SIZE"
