@@ -297,6 +297,15 @@ Item {
               ]
             }
 
+            ChoiceSetting {
+              title: "PILL COLOURS"
+              key: "pillColors"
+              options: [
+                { value: "neutral", label: "Neutral" },
+                { value: "theme", label: "Theme" }
+              ]
+            }
+
             ToggleSetting {
               label: "Pill background"
               description: "Fill behind occupied and hovered workspaces"
@@ -636,7 +645,7 @@ Item {
           height: root.pillHeight
           width: labelText.implicitWidth + root.pillPad * 2
           radius: Model.pillRadius(height, Style.cornerRadius > 0, root.cfg.pillShape)
-          color: active ? Util.alpha(root.fg, 0.18) : "transparent"
+          color: active ? (root.cfg.pillColors === "theme" ? Style.selectedAccentFill : Util.alpha(root.fg, 0.18)) : "transparent"
 
           Behavior on height { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
           Behavior on width { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }

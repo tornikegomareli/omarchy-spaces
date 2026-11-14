@@ -34,6 +34,7 @@ var DEFAULTS = {
   pillHeight: 0,              // px; 0 = automatic (bar height minus the usual inset)
   pillPadding: 0,             // px per side inside a pill; 0 = from density
   pillShape: "auto",          // "auto" (follows window rounding) | "oval"
+  pillColors: "neutral",      // "neutral" (shades of the bar text) | "theme" (Omarchy's fills, accent when active)
   activeClick: "none",        // clicking the active pill: "none" | "previous"
   activeIconClick: "cycle",   // clicking a focused app: "cycle" | "previous"
   settingsButton: "never",    // gear button: "hover" | "always" | "never"
@@ -52,6 +53,7 @@ var SHOW_APPS = ["all", "active", "hover", "hoverOnly"]
 var ICON_STYLES = ["color", "mono"]
 var DENSITIES = ["compact", "normal", "roomy"]
 var PILL_SHAPES = ["auto", "oval"]
+var PILL_COLORS = ["neutral", "theme"]
 var ACTIVE_CLICKS = ["none", "previous"]
 var ACTIVE_ICON_CLICKS = ["cycle", "previous"]
 var SETTINGS_BUTTONS = ["hover", "always", "never"]
@@ -109,6 +111,7 @@ function resolveSettings(raw) {
     pillHeight: clampInt(s.pillHeight, 0, PILL_LIMITS.heightMax, d.pillHeight),
     pillPadding: clampInt(s.pillPadding, 0, PILL_LIMITS.paddingMax, d.pillPadding),
     pillShape: oneOf(s.pillShape, PILL_SHAPES, d.pillShape),
+    pillColors: oneOf(s.pillColors, PILL_COLORS, d.pillColors),
     activeClick: oneOf(s.activeClick, ACTIVE_CLICKS, d.activeClick),
     activeIconClick: oneOf(s.activeIconClick, ACTIVE_ICON_CLICKS, d.activeIconClick),
     settingsButton: oneOf(s.settingsButton, SETTINGS_BUTTONS, d.settingsButton),

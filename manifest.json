@@ -261,6 +261,16 @@
         "default": "auto"
       },
       {
+        "key": "pillColors",
+        "type": "enum",
+        "label": "Pill colours",
+        "options": [
+          "neutral",
+          "theme"
+        ],
+        "default": "neutral"
+      },
+      {
         "key": "settingsButton",
         "type": "enum",
         "label": "Settings button",
