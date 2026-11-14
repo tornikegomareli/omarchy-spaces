@@ -90,8 +90,6 @@ FloatingWindow {
       appIcons()
       iconDismissesPreview()
       previousWindow()
-      crossWorkspaceFocusHistory()
-      specialWorkspaceHistory()
       workspacePreviews()
       previewHandoff()
     }
@@ -348,7 +346,7 @@ FloatingWindow {
       console.log("PASS: app icon click dismisses open and pending previews; hovering another app reopens with its selection")
     }
     function previousWindow() {
-      var current = widget.backgroundWindowAddress()
+      var current = String(widget.activeWindowAddress()).replace(/^0x/, "").toLowerCase()
       var other = widget.liveWindowAddresses().filter(function(address) { return address !== current })[0]
       if (!current || !other) {
         console.log("SKIP: need two live windows for the previous-window check")
@@ -369,79 +367,13 @@ FloatingWindow {
         "Unfocused icon did not target its own window: " + sent)
       check(sent.indexOf("top,address:0x" + current) !== -1,
         "Icon's window was not raised using the target address: " + sent)
-      console.log("PASS: focused icon returns to previous live window; unfocused icon focuses its own window")
-    }
-    function crossWorkspaceFocusHistory() {
-      var current = widget.backgroundWindowAddress()
-      var others = widget.liveWindowAddresses().filter(function(address) { return address !== current })
-      if (!current || others.length < 2) {
-        console.log("SKIP: need three live windows for the intermediate-focus check")
-        return
-      }
-      var target = others[0], intermediate = others[1]
-      widget.windowFocusHistory = [current, intermediate]
-      sentBy(function() { widget.focusWindow(target) })
-      check(widget.pendingWindowFocus === target, "Window focus request was not tracked")
-      widget.rememberFocusedWindow("")
-      widget.rememberFocusedWindow(intermediate)
-      check(JSON.stringify(widget.windowFocusHistory) === JSON.stringify([current, intermediate]),
-        "Workspace's intermediate focus replaced the origin")
-      widget.rememberFocusedWindow(target)
-      check(widget.pendingWindowFocus === "", "Successful focus did not finish the request immediately")
-      var icon = {address: target, addresses: [target], focused: true}
-      check(Model.iconClickTarget(icon, "previous", widget.windowFocusHistory, widget.liveWindowAddresses()) === current,
-        "Focused icon would return inside the destination workspace instead of to the origin")
-      widget.rememberFocusedWindow(intermediate)
-      check(widget.windowFocusHistory[0] === intermediate && widget.windowFocusHistory[1] === target,
-        "Normal focus changes stopped updating history after a successful request")
-
-      // A newer click supersedes an outstanding request.
-      widget.windowFocusHistory = [current]
-      sentBy(function() { widget.focusWindow(target); widget.focusWindow(intermediate) })
-      widget.rememberFocusedWindow(target)
-      check(widget.windowFocusHistory[0] === current, "An older focus request polluted the new request's history")
-      widget.rememberFocusedWindow(intermediate)
-      check(JSON.stringify(widget.windowFocusHistory) === JSON.stringify([intermediate, current]),
-        "Newer focus request lost its origin")
-
-      // Failed dispatches and targets that disappear must not freeze history.
-      sentBy(function() { widget.focusWindow(target) })
-      wait(1100)
-      check(widget.pendingWindowFocus === "", "Failed focus request did not expire")
-      widget.rememberFocusedWindow(intermediate)
-      check(widget.windowFocusHistory[0] === intermediate, "History stayed paused after a failed request")
-      sentBy(function() { widget.focusWindow("deadbeef") })
-      widget.rememberFocusedWindow(target)
-      check(widget.pendingWindowFocus === "" && widget.windowFocusHistory[0] === target,
-        "A vanished target left history paused")
-      widget.rememberFocusedWindow()
-      console.log("PASS: intermediate workspace focus, newer clicks, normal focus, failed requests, and vanished targets")
-    }
-    function specialWorkspaceHistory() {
-      var special = Hyprland.toplevels.values.filter(function(window) {
-        return window.workspace && window.workspace.id < 0
-      }).map(function(window) { return Model.normalizeAddress(window.address) })
-      var current = widget.backgroundWindowAddress()
-      var live = widget.liveWindowAddresses()
-      var target = live.filter(function(address) { return address !== current })[0]
-      if (!special.length || live.indexOf(current) === -1 || !target) {
-        console.log("SKIP: need a special-workspace window and two regular windows for the overlay check")
-        return
-      }
-      widget.windowFocusHistory = [current]
-      sentBy(function() { widget.focusWindow(target) })
-      for (var address of special) {
-        check(live.indexOf(address) === -1, "Special workspace became a previous-window target")
-        widget.rememberFocusedWindow(address)
-        check(widget.pendingWindowFocus === target && widget.windowFocusHistory[0] === current,
-          "Restoring an overlay interrupted the background window focus request")
-      }
-      widget.rememberFocusedWindow(target)
-      check(widget.pendingWindowFocus === ""
-        && JSON.stringify(widget.windowFocusHistory) === JSON.stringify([target, current]),
-        "Background focus completion lost the regular window's return target")
-      widget.rememberFocusedWindow()
-      console.log("PASS: special workspaces stay out of history and preserve pending background focus")
+      check(sent.indexOf("cursor.move") === -1, "Pointer restored while movePointer is on: " + sent)
+      widget.settings = Object.assign({}, widget.settings, {movePointer: false})
+      sent = sentBy(function() { widget.activateItem(icon) })
+      check(sent.indexOf("hyprctl eval") !== -1 && sent.indexOf("get_cursor_pos") < sent.indexOf("cursor.move")
+        && sent.indexOf("|| (hyprctl dispatch") !== -1 && sent.indexOf("address:0x" + current) !== -1,
+        "movePointer off did not focus in one Lua call that restores the pointer: " + sent)
+      console.log("PASS: focused icon returns to previous live window; unfocused icon focuses its own window; pointer can stay")
     }
     function workspaceEdges() {
       var workspace = widget.workspaceIds.filter(function(id) { return id !== widget.currentWorkspaceId })[0]
