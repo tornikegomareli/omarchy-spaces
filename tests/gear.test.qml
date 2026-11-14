@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Window
 import QtTest
 import Quickshell
+import "Model.js" as Model
 Window {
   visible: true
   // Grows with the widget so every pill stays inside the window, even on a long vertical bar.
@@ -88,6 +89,7 @@ Window {
       workspaceEdges()
       appIcons()
       previousWindow()
+      crossWorkspaceFocusHistory()
     }
     function previousWindow() {
       var current = String(widget.activeWindowAddress()).replace(/^0x/, "").toLowerCase()
@@ -118,6 +120,52 @@ Window {
         && sent.indexOf("|| (hyprctl dispatch") !== -1 && sent.indexOf("address:0x" + current) !== -1,
         "movePointer off did not focus in one Lua call that restores the pointer: " + sent)
       console.log("PASS: focused icon returns to previous live window; unfocused icon focuses its own window; pointer can stay")
+    }
+    function crossWorkspaceFocusHistory() {
+      var current = Model.normalizeAddress(widget.activeWindowAddress())
+      var others = widget.liveWindowAddresses().filter(function(address) { return address !== current })
+      if (!current || others.length < 2) {
+        console.log("SKIP: need three live windows for the intermediate-focus check")
+        return
+      }
+      var target = others[0], intermediate = others[1]
+      widget.windowFocusHistory = [current, intermediate]
+      sentBy(function() { widget.focusWindow(target) })
+      check(widget.pendingWindowFocus === target, "Window focus request was not tracked")
+      widget.rememberFocusedWindow("")
+      widget.rememberFocusedWindow(intermediate)
+      check(JSON.stringify(widget.windowFocusHistory) === JSON.stringify([current, intermediate]),
+        "Workspace's intermediate focus replaced the origin")
+      widget.rememberFocusedWindow(target)
+      check(widget.pendingWindowFocus === "", "Successful focus did not finish the request immediately")
+      var icon = {address: target, addresses: [target], focused: true}
+      check(Model.iconClickTarget(icon, "previous", widget.windowFocusHistory, widget.liveWindowAddresses()) === current,
+        "Focused icon would return inside the destination workspace instead of to the origin")
+      widget.rememberFocusedWindow(intermediate)
+      check(widget.windowFocusHistory[0] === intermediate && widget.windowFocusHistory[1] === target,
+        "Normal focus changes stopped updating history after a successful request")
+
+      // A newer click supersedes an outstanding request.
+      widget.windowFocusHistory = [current]
+      sentBy(function() { widget.focusWindow(target); widget.focusWindow(intermediate) })
+      widget.rememberFocusedWindow(target)
+      check(widget.windowFocusHistory[0] === current, "An older focus request polluted the new request's history")
+      widget.rememberFocusedWindow(intermediate)
+      check(JSON.stringify(widget.windowFocusHistory) === JSON.stringify([intermediate, current]),
+        "Newer focus request lost its origin")
+
+      // Failed dispatches and targets that disappear must not freeze history.
+      sentBy(function() { widget.focusWindow(target) })
+      wait(1100)
+      check(widget.pendingWindowFocus === "", "Failed focus request did not expire")
+      widget.rememberFocusedWindow(intermediate)
+      check(widget.windowFocusHistory[0] === intermediate, "History stayed paused after a failed request")
+      sentBy(function() { widget.focusWindow("deadbeef") })
+      widget.rememberFocusedWindow(target)
+      check(widget.pendingWindowFocus === "" && widget.windowFocusHistory[0] === target,
+        "A vanished target left history paused")
+      widget.rememberFocusedWindow()
+      console.log("PASS: intermediate workspace focus, newer clicks, normal focus, failed requests, and vanished targets")
     }
     function workspaceEdges() {
       var workspace = widget.workspaceIds.filter(function(id) { return id !== widget.currentWorkspaceId })[0]
