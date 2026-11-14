@@ -513,6 +513,11 @@ function iconClickTarget(item, mode, history, openAddresses) {
   if (!item) return ""
   var current = normalizeAddress(item.address)
   if (!item.focused) return current
+  var addresses = item.addresses || [item.address]
+  if (addresses.length > 1) {
+    var index = addresses.indexOf(item.address)
+    return normalizeAddress(addresses[(index + 1) % addresses.length])
+  }
   if (mode === "previous") {
     for (var i = 0; i < history.length; i++) {
       var key = normalizeAddress(history[i])
@@ -520,9 +525,7 @@ function iconClickTarget(item, mode, history, openAddresses) {
     }
     return current
   }
-  var addresses = item.addresses || [item.address]
-  var index = addresses.indexOf(item.address)
-  return normalizeAddress(addresses[(index + 1) % addresses.length])
+  return current
 }
 
 // Title shown next to the focused icon. The app name when
