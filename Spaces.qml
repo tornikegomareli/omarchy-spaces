@@ -122,14 +122,37 @@ Panel {
   property string pendingWindowFocus: ""
 
   function liveWindowAddresses() {
-    return Hyprland.toplevels.values.map(function(toplevel) {
+    // Spaces represents regular workspaces. An overlay must not become the
+    // return target when switching the workspace underneath it.
+    return Hyprland.toplevels.values.filter(function(toplevel) {
+      return toplevel.workspace && toplevel.workspace.id > 0
+    }).map(function(toplevel) {
       return Model.normalizeAddress(toplevel.address)
     })
   }
 
+  function backgroundWindowAddress() {
+    var active = Hyprland.activeToplevel
+    if (!active) return ""
+    if (active.workspace && active.workspace.id > 0) return Model.normalizeAddress(active.address)
+    var monitor = Hyprland.focusedMonitor
+    var workspace = monitor ? monitor.activeWorkspace : Hyprland.focusedWorkspace
+    if (!workspace || workspace.id <= 0) return ""
+    var addresses = workspace.toplevels.values.map(function(toplevel) {
+      return Model.normalizeAddress(toplevel.address)
+    })
+    for (var i = 0; i < root.windowFocusHistory.length; i++) {
+      var address = root.windowFocusHistory[i]
+      if (addresses.indexOf(address) !== -1) return address
+    }
+    var last = Model.normalizeAddress((workspace.lastIpcObject || {}).lastwindow)
+    return addresses.indexOf(last) !== -1 ? last : ""
+  }
+
   function rememberFocusedWindow(address) {
-    var current = Model.normalizeAddress(address === undefined ? root.activeWindowAddress() : address)
+    var current = Model.normalizeAddress(address === undefined ? root.backgroundWindowAddress() : address)
     var open = root.liveWindowAddresses()
+    if (!current || open.indexOf(current) === -1) return
     if (root.pendingWindowFocus) {
       // Entering a workspace can focus its last window before the requested
       // one. Keep the origin as "previous" until the requested focus arrives.
@@ -424,28 +447,24 @@ Panel {
   function focusWindow(address) {
     root.rememberFocusedWindow()
     var key = Model.normalizeAddress(address)
-    root.pendingWindowFocus = key === Model.normalizeAddress(root.activeWindowAddress()) ? "" : key
+    root.pendingWindowFocus = key === root.backgroundWindowAddress() ? "" : key
     if (root.pendingWindowFocus) windowFocusTimeout.restart()
     else {
       windowFocusTimeout.stop()
       root.rememberFocusedWindow()
     }
-    var target = "address:0x" + String(address).replace(/^0x/, "")
-    var focus = "hl.dsp.focus({ window = \"" + target + "\" })"
-    var raise = "hl.dsp.window.alter_zorder({ window = \"" + target + "\", mode = \"top\" })"
-    var dispatch = "(hyprctl dispatch " + Util.shellQuote(focus)
+    var target = "address:0x" + key
+    var lua = Model.focusWindowLua(target, {
+      keepPointer: !root.cfg.movePointer,
+      keepScratchpad: root.cfg.keepScratchpad,
+      event: root.moduleName + ":background:" + key
+    })
+    var dispatch = "(hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"" + target + "\" })")
       + " >/dev/null 2>&1 || hyprctl dispatch focuswindow " + Util.shellQuote(target) + ")"
-      + " && (hyprctl dispatch " + Util.shellQuote(raise)
+      + " && (hyprctl dispatch " + Util.shellQuote("hl.dsp.window.alter_zorder({ window = \"" + target + "\", mode = \"top\" })")
       + " >/dev/null 2>&1 || hyprctl dispatch alterzorder " + Util.shellQuote("top," + target) + ")"
-    if (root.cfg.movePointer) {
-      run(dispatch)
-      return
-    }
-    // Hyprland moves the pointer onto the window it focuses. One Lua call
-    // focuses, raises and puts the pointer back before a frame is drawn.
-    // eval exits 0 on errors too, so only its "ok" reply skips the fallback.
-    var lua = "local p = hl.get_cursor_pos(); hl.dispatch(" + focus + "); hl.dispatch(" + raise + ");"
-      + " if p then hl.dispatch(hl.dsp.cursor.move({ x = p.x, y = p.y })) end"
+    // eval exits 0 on errors too, so anything but its "ok" reply (a hyprlang
+    // config, a window that just closed) falls back to the plain dispatchers.
     run("[ \"$(hyprctl eval " + Util.shellQuote(lua) + " 2>&1)\" = ok ] || " + dispatch)
   }
 
@@ -494,10 +513,16 @@ Panel {
     target: Hyprland
     function onRawEvent(event) {
       switch (event.name) {
+      case "custom":
+        var prefix = root.moduleName + ":background:"
+        if (event.data.indexOf(prefix) === 0) root.rememberFocusedWindow(event.data.slice(prefix.length))
+        break
       case "urgent":
         root.setUrgent(event.data, true)
         break
       case "activewindowv2":
+        // Use the event's window even if activeToplevel has already changed.
+        root.rememberFocusedWindow(event.data)
         root.hideHeldNumbers()
         root.setUrgent(event.data, false)
         refreshDebounce.restart()

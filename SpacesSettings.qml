@@ -419,6 +419,11 @@ Item {
             description: "Off keeps it where you clicked"
             key: "movePointer"
           }
+          ToggleSetting {
+            label: "Keep an open scratchpad"
+            description: "Clicking a window switches the workspace under it"
+            key: "keepScratchpad"
+          }
 
           // ---- Animation
           SectionTitle { text: "ANIMATION" }

@@ -122,6 +122,30 @@ test("iconItems overflow never hides focused", () => {
   assert.deepStrictEqual(r.items.map(i => i.address), ["1", "2", "5"])
 })
 
+test("focusWindowLua focuses, raises floating windows, and adds only what is asked", () => {
+  const plain = M.focusWindowLua("address:0xabc", {})
+  assert.match(plain, /^local w = assert\(hl\.get_window\("address:0xabc"\)\)/)
+  assert.match(plain, /hl\.dispatch\(hl\.dsp\.focus\(\{ window = w \}\)\)/)
+  assert.match(plain, /if w\.floating then hl\.dispatch\(hl\.dsp\.window\.alter_zorder/)
+  assert.doesNotMatch(plain, /cursor|special|set_workspace|event/)
+  const still = M.focusWindowLua("address:0xabc", { keepPointer: true })
+  assert.ok(still.indexOf("get_cursor_pos") < still.indexOf("hl.dsp.focus"))
+  assert.ok(still.lastIndexOf("cursor.move") > still.indexOf("alter_zorder"))
+  assert.strictEqual(M.resolveSettings({}).keepScratchpad, false)
+})
+
+test("focusWindowLua switches the workspace under a focused scratchpad only when asked", () => {
+  const lua = M.focusWindowLua("address:0xabc", { keepScratchpad: true, event: "x:background:abc" })
+  // Only while the scratchpad itself has focus, and never for a window on it.
+  assert.match(lua, /if s and a and a\.workspace == s and not w\.workspace\.special then/)
+  // Both set_workspace signatures: a table on 0.56, the workspace later.
+  assert.match(lua, /pcall\(function\(\) m:set_workspace\(\{ workspace = w\.workspace \}\) end\)/)
+  assert.match(lua, /then m:set_workspace\(w\.workspace\) end/)
+  assert.match(lua, /hl\.dsp\.event\("x:background:abc"\)/)
+  assert.match(lua, /else hl\.dispatch\(hl\.dsp\.focus\(\{ window = w \}\)\) end/)
+  assert.strictEqual(M.resolveSettings({ keepScratchpad: true }).keepScratchpad, true)
+})
+
 test("focusedLabel uses app name for single window, title for many", () => {
   assert.strictEqual(M.focusedLabel({ focused: true, count: 1, title: "t" }, "Foot", 20), "Foot")
   assert.strictEqual(M.focusedLabel({ focused: true, count: 2, title: "long title here" }, "Foot", 6), "long …")

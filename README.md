@@ -228,6 +228,12 @@ For example, focus a browser from your terminal, then click the browser icon
 again to return to that terminal. This works across workspaces too.
 The destination workspace's temporary focus while switching is ignored, so
 the next click returns to the window you came from.
+Scratchpads and other special workspaces are excluded from this history.
+
+Clicking a window while a scratchpad is open closes the scratchpad, like
+switching workspaces does. Turn on **Behaviour → Keep an open scratchpad** to
+switch the workspace under it instead, with the scratchpad kept open and
+focused.
 
 ```sh
 omarchy bar set tornikegomareli.spaces activeIconClick previous

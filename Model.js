@@ -29,6 +29,7 @@ var DEFAULTS = {
   urgentHighlight: true,      // pulse workspaces whose windows ask for attention
   middleClickClose: false,    // middle-click an icon closes that window
   movePointer: true,          // Hyprland moves the pointer onto a window it focuses
+  keepScratchpad: false,      // a click under an open scratchpad leaves it open
   tooltips: true,
   density: "normal",          // "compact" | "normal" | "roomy"
   pillHeight: 0,              // px; 0 = automatic (bar height minus the usual inset)
@@ -105,6 +106,7 @@ function resolveSettings(raw) {
     urgentHighlight: bool(s.urgentHighlight, d.urgentHighlight),
     middleClickClose: bool(s.middleClickClose, d.middleClickClose),
     movePointer: bool(s.movePointer, d.movePointer),
+    keepScratchpad: bool(s.keepScratchpad, d.keepScratchpad),
     tooltips: bool(s.tooltips, d.tooltips),
     density: oneOf(s.density, DENSITIES, d.density),
     pillHeight: clampInt(s.pillHeight, 0, PILL_LIMITS.heightMax, d.pillHeight),
@@ -530,6 +532,35 @@ function iconClickTarget(item, mode, history, openAddresses) {
   return current
 }
 
+// Lua for `hyprctl eval` that focuses a window and raises it if it floats,
+// in one call, so every step lands before a frame is drawn. keepPointer puts
+// the pointer back where Hyprland's focus warp found it. keepScratchpad, while
+// a scratchpad has focus, switches the workspace under it instead: focusing
+// the window would close the scratchpad. Focus stays on the scratchpad, and
+// `event` tells the bar which window was picked.
+function focusWindowLua(target, opts) {
+  var o = opts || {}
+  var lua = ["local w = assert(hl.get_window(" + JSON.stringify(target) + "))"]
+  if (o.keepPointer) lua.push("local p = hl.get_cursor_pos()")
+  if (o.keepScratchpad) {
+    lua.push(
+      "local m = w.monitor",
+      "local s = m and m.active_special_workspace",
+      "local a = hl.get_active_window()",
+      "if s and a and a.workspace == s and not w.workspace.special then",
+      // Hyprland 0.56 takes a table; later releases take the workspace itself.
+      "if not pcall(function() m:set_workspace({ workspace = w.workspace }) end) then m:set_workspace(w.workspace) end",
+      "hl.dispatch(hl.dsp.focus({ window = a }))",
+      "hl.dispatch(hl.dsp.event(" + JSON.stringify(String(o.event || "")) + "))",
+      "else hl.dispatch(hl.dsp.focus({ window = w })) end")
+  } else {
+    lua.push("hl.dispatch(hl.dsp.focus({ window = w }))")
+  }
+  lua.push("if w.floating then hl.dispatch(hl.dsp.window.alter_zorder({ window = w, mode = \"top\" })) end")
+  if (o.keepPointer) lua.push("if p then hl.dispatch(hl.dsp.cursor.move({ x = p.x, y = p.y })) end")
+  return lua.join(" ")
+}
+
 // Title shown next to the focused icon. The app name when
 // the app has a single window in the workspace, else the window title.
 function focusedLabel(item, appName, maxLength) {
@@ -862,7 +893,7 @@ if (typeof module !== "undefined") {
     sortWindows: sortWindows, iconItems: iconItems, truncate: truncate,
     focusedLabel: focusedLabel, webAppHost: webAppHost, webAppKey: webAppKey, chromiumAppKey: chromiumAppKey,
     execUrl: execUrl, webAppEntryIndex: webAppEntryIndex, appIdCandidates: appIdCandidates, iconPathScore: iconPathScore,
-    rememberWindowFocus: rememberWindowFocus, iconClickTarget: iconClickTarget,
+    rememberWindowFocus: rememberWindowFocus, iconClickTarget: iconClickTarget, focusWindowLua: focusWindowLua,
     iconNameFromPath: iconNameFromPath, stepWorkspace: stepWorkspace, mergedEntry: mergedEntry,
     fallbackLetter: fallbackLetter
   }
