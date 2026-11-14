@@ -358,7 +358,7 @@ Item {
 
           ToggleSetting {
             label: "Workspace previews"
-            description: "Hover a workspace to see a live miniature of it"
+            description: "Hover another workspace to see a live miniature of it"
             key: "previews"
           }
 

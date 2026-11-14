@@ -766,12 +766,36 @@ Panel {
   property var highlightAddresses: []
   property int highlightWorkspaceId: -1
   property bool previewHandoffPending: false
+  property string handoffCandidate: ""
 
   function clearPreviewHighlight() {
     root.highlightAddress = ""
     root.highlightAddresses = []
     root.highlightWorkspaceId = -1
     root.previewHandoffPending = false
+    root.handoffCandidate = ""
+    handoffTimer.stop()
+  }
+
+  // Hover selection inside the preview; a group that doesn't hold the
+  // window is dropped. The selection is kept after the pointer leaves, so
+  // overlapping thumbnails cannot swap back under it as their z-order changes.
+  function selectThumbnail(address) {
+    root.previewHandoffPending = false
+    root.handoffCandidate = ""
+    handoffTimer.stop()
+    root.highlightWorkspaceId = root.previewWorkspaceId
+    if (root.highlightAddresses.indexOf(address) === -1) root.highlightAddresses = []
+    root.highlightAddress = address
+  }
+
+  // On the way from an app icon to its thumbnail the pointer can cross
+  // another thumbnail's exposed edge, which must not take the selection.
+  // Resting on that thumbnail means the pointer went there on purpose.
+  Timer {
+    id: handoffTimer
+    interval: 300
+    onTriggered: if (root.previewHandoffPending && root.handoffCandidate) root.selectThumbnail(root.handoffCandidate)
   }
 
   onPreviewWorkspaceIdChanged: {
@@ -1696,16 +1720,16 @@ Panel {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onContainsMouseChanged: {
-              if (containsMouse && (!root.previewHandoffPending
-                  || root.highlightAddresses.indexOf(thumb.modelData) !== -1)) {
-                // An unrelated thumbnail's exposed edge may sit between the
-                // bar and the selected app. Finish the handoff at that app.
-                root.previewHandoffPending = false
-                root.highlightWorkspaceId = root.previewWorkspaceId
-                if (root.highlightAddresses.indexOf(thumb.modelData) === -1) root.highlightAddresses = []
-                // Retain the last target on exit so overlapping thumbnails
-                // cannot swap back under the pointer as their z-order changes.
-                root.highlightAddress = thumb.modelData
+              if (!containsMouse) {
+                if (root.handoffCandidate === thumb.modelData) {
+                  root.handoffCandidate = ""
+                  handoffTimer.stop()
+                }
+              } else if (root.previewHandoffPending && root.highlightAddresses.indexOf(thumb.modelData) === -1) {
+                root.handoffCandidate = thumb.modelData
+                handoffTimer.restart()
+              } else {
+                root.selectThumbnail(thumb.modelData)
               }
             }
             onClicked: {

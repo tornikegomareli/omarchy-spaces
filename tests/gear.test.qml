@@ -92,6 +92,48 @@ FloatingWindow {
       previousWindow()
       workspacePreviews()
       previewHandoff()
+      handoffTimeout()
+    }
+    // A pending icon-to-thumbnail handoff ignores a quick crossing of another
+    // thumbnail, but resting on one hands the selection to it.
+    function handoffTimeout() {
+      widget.applySetting({previews: true, previewLive: false})
+      var other = widget.workspaceIds.filter(function(id) {
+        return id !== widget.currentWorkspaceId && widget.workspaceMap[id] && widget.workspaceMap[id].windows.length
+      })[0]
+      if (other === undefined) {
+        console.log("SKIP: need another occupied workspace for the handoff timeout check")
+        return
+      }
+      check(widget.peek(other), "Could not open the preview for the handoff timeout check")
+      wait(100)
+      var card = null
+      for (var resource of widget.resources) {
+        if (resource.mapWidth !== undefined && resource.triggerMode === "hover") card = resource
+      }
+      var thumbs = []
+      for (var content of card.contentItem) collect(content, function(item) {
+        return item.rect !== undefined && item.highlighted !== undefined
+      }, thumbs)
+      var thumb = thumbs[0]
+      check(thumb, "Missing a thumbnail for the handoff timeout check")
+      widget.highlightWorkspaceId = widget.previewWorkspaceId
+      widget.highlightAddresses = ["deadbeef"]
+      widget.highlightAddress = "deadbeef"
+      widget.previewHandoffPending = true
+      mouseMove(thumb, thumb.width / 2, thumb.height / 2)
+      wait(100)
+      mouseMove(card.contentItem[0], 1, 1)
+      wait(400)
+      check(widget.highlightAddress === "deadbeef" && widget.previewHandoffPending,
+        "Crossing another thumbnail took the pending selection")
+      mouseMove(thumb, thumb.width / 2, thumb.height / 2)
+      wait(400)
+      check(widget.highlightAddress === thumb.modelData && !widget.previewHandoffPending,
+        "Resting on another thumbnail did not end the pending handoff")
+      widget.hidePreview()
+      check(widget.highlightAddress === "" && widget.handoffCandidate === "", "Hiding the preview kept the handoff state")
+      console.log("PASS: a pending handoff ignores a quick crossing and yields to a thumbnail the pointer rests on")
     }
     function previewHandoff() {
       widget.applySetting({previews: true, previewActive: true, groupApps: true, previewLive: false})
