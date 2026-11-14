@@ -253,6 +253,8 @@ test("new settings validate", () => {
   assert.strictEqual(s.showIcons, true)
   assert.strictEqual(s.pillBackground, true)
   assert.strictEqual(M.resolveSettings({ pillBackground: false }).pillBackground, false)
+  assert.strictEqual(s.boldActive, true)
+  assert.strictEqual(M.resolveSettings({ boldActive: false }).boldActive, false)
 })
 
 test("pillHeight and pillPadding default to automatic", () => {

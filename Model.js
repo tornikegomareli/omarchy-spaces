@@ -17,6 +17,7 @@ var DEFAULTS = {
   focusedTitle: false,        // show the focused window's title next to its icon
   titleLength: 24,
   activeStyle: "subtle",      // "subtle" | "solid" | "accent"
+  boldActive: true,           // the active workspace's label in bold
   iconHighlight: "tile",      // focused/hovered app: "tile" behind it | "dot" under it
   pillBackground: true,       // quiet fill behind occupied/hovered pills
   pillBorder: false,          // outline around each pill that shows its icons, grouping number + icons
@@ -92,6 +93,7 @@ function resolveSettings(raw) {
     focusedTitle: bool(s.focusedTitle, d.focusedTitle),
     titleLength: clampInt(s.titleLength, 8, 60, d.titleLength),
     activeStyle: oneOf(s.activeStyle, ACTIVE_STYLES, d.activeStyle),
+    boldActive: bool(s.boldActive, d.boldActive),
     iconHighlight: oneOf(s.iconHighlight, ICON_HIGHLIGHTS, d.iconHighlight),
     pillBackground: bool(s.pillBackground, d.pillBackground),
     pillBorder: bool(s.pillBorder, d.pillBorder),
