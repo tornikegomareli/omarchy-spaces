@@ -737,4 +737,10 @@ test("workspaceIcon falls back to the label and honours precedence", () => {
   assert.strictEqual(M.workspaceIcon(named, 11, true), "\u2699")
 })
 
+test("pillColors defaults to neutral and accepts theme", () => {
+  assert.strictEqual(M.resolveSettings({}).pillColors, "neutral")
+  assert.strictEqual(M.resolveSettings({ pillColors: "theme" }).pillColors, "theme")
+  assert.strictEqual(M.resolveSettings({ pillColors: "rainbow" }).pillColors, "neutral")
+})
+
 if (failed) { console.log(failed + " failed"); process.exit(1) }

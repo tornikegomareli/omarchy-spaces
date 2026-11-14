@@ -64,10 +64,13 @@ Panel {
   readonly property var metrics: Model.densityMetrics(cfg.density)
   readonly property bool widgetHovered: widgetHover.hovered
 
+  readonly property bool themeFills: cfg.pillColors === "theme"
+
   function activeFill() {
     if (cfg.activeStyle === "solid") return root.fg
     if (cfg.activeStyle === "accent") return Color.accent
-    return Util.alpha(root.fg, 0.18)
+    // Theme colours: the accent at the theme's selected-fill alpha.
+    return root.themeFills ? Style.selectedAccentFill : Util.alpha(root.fg, 0.18)
   }
 
   function activeText() {
@@ -1046,8 +1049,9 @@ Panel {
           radius: root.pillRadius
           color: pill.active ? root.activeFill()
             : root.cfg.pillBackground
-              ? (pill.hovered ? Util.alpha(root.fg, 0.12)
-                : pill.occupied ? Util.alpha(root.fg, 0.06)
+              // Theme colours: Omarchy's own hover and idle fills.
+              ? (pill.hovered ? (root.themeFills ? Style.hoverFillFor(root.fg, Color.accent, Color.urgent) : Util.alpha(root.fg, 0.12))
+                : pill.occupied ? (root.themeFills ? Style.normalFillFor(root.fg, Color.accent, Color.urgent) : Util.alpha(root.fg, 0.06))
                 : "transparent")
               : "transparent"
           // Optional outline so a pill's number and icons read as one box. It follows the icons: only pills
