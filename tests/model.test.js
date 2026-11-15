@@ -162,6 +162,29 @@ test("restoring and minimizing elsewhere replaces the previous workspace and geo
   assert.deepStrictEqual(cold.a.at, [100, 100], "a different origin must not inherit old geometry")
 })
 
+test("a stale origin tag keeps the workspace the window was restored to", () => {
+  const onTwo = {address: "a", workspaceId: 2, workspaceName: "2", ipcWorkspaceName: "2",
+    at: [10, 20], size: [100, 80], floating: true, monitor: 0}
+  let placements = M.windowPlacements([onTwo], {})
+  placements = M.windowPlacements([{...onTwo, workspaceId: -99, workspaceName: "special:minimized",
+    ipcWorkspaceName: "special:minimized", tags: ["omarchy-minimized-from-2"], at: [0, 0]}], placements)
+  // The dock restores onto workspace 5 and leaves the old origin tag in place.
+  const restored = {...onTwo, workspaceId: 5, workspaceName: "5", ipcWorkspaceName: "5",
+    at: [600, 80], tags: ["omarchy-minimized-from-2"]}
+  placements = M.windowPlacements([restored], placements)
+  assert.strictEqual(placements.a.workspaceId, 5)
+  assert.strictEqual(placements.a.minimized, false)
+  // Quickshell already reports special:minimized; IPC still has the old tag.
+  placements = M.windowPlacements([{...restored, workspaceId: -99, workspaceName: "special:minimized",
+    ipcWorkspaceName: "5", tags: ["omarchy-minimized-from-2"], at: [0, 0]}], placements)
+  assert.strictEqual(placements.a.minimized, true)
+  assert.strictEqual(placements.a.workspaceId, 5, "stale tag must not send the icon back to workspace 2")
+  assert.deepStrictEqual(placements.a.at, [600, 80])
+  placements = M.windowPlacements([{...placements.a, workspaceName: "special:minimized",
+    ipcWorkspaceName: "special:minimized", tags: ["omarchy-minimized-from-5"]}], placements)
+  assert.strictEqual(placements.a.workspaceId, 5)
+})
+
 test("iconItems groups same app and keeps focused address", () => {
   const r = M.iconItems([
     { address: "1", appId: "foot", title: "a", focused: false },
@@ -172,6 +195,30 @@ test("iconItems groups same app and keeps focused address", () => {
   assert.strictEqual(r.items[0].count, 2)
   assert.strictEqual(r.items[0].address, "3")
   assert.strictEqual(r.items[0].focused, true)
+})
+
+test("iconItems prefers a visible window over a minimized sibling", () => {
+  const grouped = M.iconItems([
+    { address: "1", appId: "foot", title: "hidden", focused: true, minimized: true },
+    { address: "2", appId: "Foot", title: "shown", focused: false, minimized: false }
+  ], true, 8)
+  assert.strictEqual(grouped.items.length, 1)
+  assert.strictEqual(grouped.items[0].address, "2")
+  assert.strictEqual(grouped.items[0].minimized, false)
+  assert.strictEqual(grouped.items[0].focused, false)
+  assert.strictEqual(grouped.items[0].count, 2)
+  const onlyHidden = M.iconItems([
+    { address: "1", appId: "foot", title: "a", focused: false, minimized: true },
+    { address: "2", appId: "foot", title: "b", focused: true, minimized: true }
+  ], true, 8)
+  assert.strictEqual(onlyHidden.items[0].address, "2")
+  assert.strictEqual(onlyHidden.items[0].minimized, true)
+  assert.strictEqual(onlyHidden.items[0].focused, true)
+  const single = M.iconItems([
+    { address: "9", appId: "foot", title: "alone", focused: false, minimized: true }
+  ], false, 8)
+  assert.strictEqual(single.items[0].minimized, true)
+  assert.strictEqual(single.items[0].address, "9")
 })
 
 test("iconItems leaves shell-hosted windows ungrouped", () => {

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Minimize needs Omarchy 4.5 and a floating workspace. This test cannot pass
+# on older Omarchy, which has no minimize.
 # On a floating workspace, minimize and restore only a disposable test window.
 set -euo pipefail
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)

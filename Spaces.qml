@@ -1292,7 +1292,8 @@ Panel {
                   implicitHeight: Math.max(root.iconPx, iconRow.implicitHeight) + Style.space(flat ? 8 : 4)
                   width: implicitWidth
                   height: implicitHeight
-                  property real dim: root.cfg.dimUnfocused && pill.active && !focusedHere && !hovered ? 0.5 : 1
+                  // A minimized window stays dimmed, including while the pointer is on it.
+                  property real dim: item && item.minimized ? 0.4 : (root.cfg.dimUnfocused && pill.active && !focusedHere && !hovered ? 0.5 : 1)
                   Behavior on dim { enabled: root.fastDur > 0; NumberAnimation { duration: root.fastDur } }
                   property real appear: 1
                   opacity: Math.min(1, appear)
@@ -1751,6 +1752,8 @@ Panel {
           // in, with one member of a group as the top hit target.
           z: rect && rect.floating ? (root.highlightAddress === modelData ? 4
             : root.highlightAddresses.indexOf(modelData) !== -1 ? 3 : thumbMouse.containsMouse ? 2 : 1) : 0
+          opacity: thumb.win && thumb.win.minimized ? 0.4 : 1
+          Behavior on opacity { enabled: root.fastDur > 0; NumberAnimation { duration: root.fastDur } }
 
           Behavior on x { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
           Behavior on y { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }

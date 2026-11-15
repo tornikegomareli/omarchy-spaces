@@ -342,12 +342,20 @@ function windowPlacements(windows, previous) {
     var workspaceId = window.workspaceId
     if (minimized) {
       workspaceId = 0
-      var tags = window.tags || []
-      for (var t = 0; t < tags.length; t++) {
-        var match = /^omarchy-minimized-from-([1-9][0-9]*)$/.exec(tags[t])
-        if (match) { workspaceId = Number(match[1]); break }
+      // Quickshell moves the window onto special:minimized before IPC
+      // refreshes tags. Restore never clears omarchy-minimized-from-N, so
+      // for that gap the tag still names the previous workspace. The last
+      // visible placement is the one the user just left.
+      if (window.ipcWorkspaceName !== "special:minimized" && saved && !saved.minimized && saved.workspaceId > 0) {
+        workspaceId = saved.workspaceId
+      } else {
+        var tags = window.tags || []
+        for (var t = 0; t < tags.length; t++) {
+          var match = /^omarchy-minimized-from-([1-9][0-9]*)$/.exec(tags[t])
+          if (match) { workspaceId = Number(match[1]); break }
+        }
+        if (!workspaceId && saved) workspaceId = saved.workspaceId
       }
-      if (!workspaceId && saved) workspaceId = saved.workspaceId
     }
     if (!(workspaceId > 0)) continue
     var placed = {}
@@ -390,8 +398,8 @@ function sortWindows(windows) {
 }
 
 // Turns a sorted window list into render items.
-//   windows: [{ address, appId, title, focused }]
-// Returns { items: [{ key, address, appId, title, focused, count }], overflow }
+//   windows: [{ address, appId, title, focused, minimized }]
+// Returns { items: [{ key, address, appId, title, focused, minimized, count }], overflow }
 function iconItems(windows, groupApps, maxIcons) {
   var items = []
   if (groupApps) {
@@ -405,23 +413,35 @@ function iconItems(windows, groupApps, maxIcons) {
       k = k || w.address
       var existing = byApp[k]
       if (!existing) {
-        existing = { key: k, address: w.address, appId: w.appId, title: w.title, focused: w.focused, count: 1, addresses: [w.address] }
+        existing = { key: k, address: w.address, appId: w.appId, title: w.title, focused: !!w.focused, minimized: !!w.minimized, count: 1, addresses: [w.address] }
         byApp[k] = existing
         items.push(existing)
       } else {
         existing.count++
         existing.addresses.push(w.address)
-        if (w.focused) {
+        var visible = !w.minimized
+        // Clicking the icon focuses its main window. A minimized window
+        // would be restored, so a visible sibling takes that role instead.
+        if (visible && existing.minimized) {
+          existing.address = w.address
+          existing.appId = w.appId
+          existing.title = w.title
+          existing.minimized = false
+          existing.focused = !!w.focused
+        } else if (w.focused && visible === !existing.minimized) {
           existing.focused = true
           existing.address = w.address
+          existing.appId = w.appId
           existing.title = w.title
+          existing.minimized = !!w.minimized
         }
+        if (w.focused && visible) existing.focused = true
       }
     }
   } else {
     for (var j = 0; j < windows.length; j++) {
       var x = windows[j]
-      items.push({ key: x.address, address: x.address, appId: x.appId, title: x.title, focused: x.focused, count: 1, addresses: [x.address] })
+      items.push({ key: x.address, address: x.address, appId: x.appId, title: x.title, focused: x.focused, minimized: !!x.minimized, count: 1, addresses: [x.address] })
     }
   }
 
