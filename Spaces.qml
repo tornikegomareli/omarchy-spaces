@@ -387,44 +387,69 @@ Panel {
     return ipc && ipc["class"] ? ipc["class"] : ""
   }
 
-  // { [workspaceId]: { id, active, windows: [{ address, appId, title, focused, at }] } }
-  readonly property var workspaceMap: {
+  property var windowPlacements: ({})
+  readonly property var windowSnapshots: {
     root.revision
-    var values = Hyprland.workspaces.values
+    var toplevels = Hyprland.toplevels.values
     var activeToplevel = Hyprland.activeToplevel
+    var windows = []
+    for (var i = 0; i < toplevels.length; i++) {
+      var tl = toplevels[i]
+      var ipc = tl.lastIpcObject || {}
+      var ws = tl.workspace
+      windows.push({
+        address: String(tl.address),
+        appId: root.cfg.agentIcons ? Model.agentAppId(root.appIdOf(tl), tl.title) : root.appIdOf(tl),
+        title: String(tl.title || ""),
+        focused: activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
+        at: ipc.at && ipc.at.length === 2 ? [ipc.at[0], ipc.at[1]] : null,
+        size: ipc.size && ipc.size.length === 2 ? [ipc.size[0], ipc.size[1]] : null,
+        floating: ipc.floating === true,
+        pid: ipc.pid || 0,
+        toplevel: tl.wayland,
+        workspaceId: ws ? ws.id : -1,
+        workspaceName: ws ? ws.name : "",
+        ipcWorkspaceName: ipc.workspace ? ipc.workspace.name : "",
+        tags: ipc.tags || [],
+        monitor: ws ? ws.monitor : null
+      })
+    }
+    return windows
+  }
+
+  onWindowSnapshotsChanged: root.windowPlacements = Model.windowPlacements(root.windowSnapshots, root.windowPlacements)
+
+  function workspaceArea(mon) {
+    return mon ? Model.monitorArea({
+      x: mon.x, y: mon.y, width: mon.width, height: mon.height, scale: mon.scale,
+      transform: mon.lastIpcObject ? mon.lastIpcObject.transform : 0,
+      reserved: mon.lastIpcObject ? mon.lastIpcObject.reserved : null
+    }) : null
+  }
+
+  // Minimized windows still occupy their original workspace, even when it no
+  // longer exists in Hyprland because its last visible window was minimized.
+  readonly property var workspaceMap: {
+    var values = Hyprland.workspaces.values
     var perMonitor = cfg.perMonitor && root.monitor !== null
     var map = ({})
-
+    var workspaceMonitors = ({})
     for (var i = 0; i < values.length; i++) {
       var ws = values[i]
       if (ws.id <= 0) continue
+      workspaceMonitors[ws.id] = ws.monitor
       if (perMonitor && ws.monitor !== root.monitor) continue
-
-      var windows = []
-      var toplevels = ws.toplevels.values
-      for (var j = 0; j < toplevels.length; j++) {
-        var tl = toplevels[j]
-        var ipc = tl.lastIpcObject || {}
-        windows.push({
-          address: String(tl.address),
-          appId: root.cfg.agentIcons ? Model.agentAppId(root.appIdOf(tl), tl.title) : root.appIdOf(tl),
-          title: String(tl.title || ""),
-          focused: activeToplevel ? tl === activeToplevel : !!(tl.wayland && tl.wayland.activated),
-          at: ipc.at && ipc.at.length === 2 ? [ipc.at[0], ipc.at[1]] : null,
-          size: ipc.size && ipc.size.length === 2 ? [ipc.size[0], ipc.size[1]] : null,
-          floating: ipc.floating === true,
-          pid: ipc.pid || 0,
-          toplevel: tl.wayland
-        })
-      }
-      var mon = ws.monitor
-      var area = mon ? Model.monitorArea({
-        x: mon.x, y: mon.y, width: mon.width, height: mon.height, scale: mon.scale,
-        transform: mon.lastIpcObject ? mon.lastIpcObject.transform : 0,
-        reserved: mon.lastIpcObject ? mon.lastIpcObject.reserved : null
-      }) : null
-      map[ws.id] = { id: ws.id, windows: Model.sortWindows(windows), area: area }
+      map[ws.id] = { id: ws.id, windows: [], area: root.workspaceArea(ws.monitor) }
     }
+    for (var key in root.windowPlacements) {
+      var window = root.windowPlacements[key]
+      var id = window.workspaceId
+      var mon = workspaceMonitors[id] || window.monitor
+      if (perMonitor && mon !== root.monitor) continue
+      if (!map[id]) map[id] = { id: id, windows: [], area: root.workspaceArea(mon) }
+      map[id].windows.push(window)
+    }
+    for (var id in map) map[id].windows = Model.sortWindows(map[id].windows)
     return map
   }
 
@@ -454,10 +479,13 @@ Panel {
       root.rememberFocusedWindow()
     }
     var target = "address:0x" + key
+    var placement = root.windowPlacements[key]
+    var restoring = placement && placement.minimized
     var lua = Model.focusWindowLua(target, {
       keepPointer: !root.cfg.movePointer,
       keepScratchpad: root.cfg.keepScratchpad,
-      event: root.moduleName + ":background:" + key
+      event: root.moduleName + ":background:" + key,
+      restoreWorkspace: restoring ? placement.workspaceId : 0
     })
     var dispatch = "(hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"" + target + "\" })")
       + " >/dev/null 2>&1 || hyprctl dispatch focuswindow " + Util.shellQuote(target) + ")"
@@ -465,7 +493,17 @@ Panel {
       + " >/dev/null 2>&1 || hyprctl dispatch alterzorder " + Util.shellQuote("top," + target) + ")"
     // eval exits 0 on errors too, so anything but its "ok" reply (a hyprlang
     // config, a window that just closed) falls back to the plain dispatchers.
-    run("[ \"$(hyprctl eval " + Util.shellQuote(lua) + " 2>&1)\" = ok ] || " + dispatch)
+    var evalOk = "[ \"$(hyprctl eval " + Util.shellQuote(lua) + " 2>&1)\" = ok ]"
+    var command = evalOk + " || " + dispatch
+    if (restoring) {
+      // Leave special:minimized before either focus path. The parentheses
+      // keep a failed move from falling through into focus, which would
+      // toggle the minimized overlay, and keep a successful eval from also
+      // running the dispatcher fallback.
+      var restore = "hl.dsp.window.move({ workspace = \"" + placement.workspaceId + "\", follow = false, window = \"" + target + "\" })"
+      command = "hyprctl dispatch " + Util.shellQuote(restore) + " && ( " + evalOk + " || ( " + dispatch + " ) )"
+    }
+    run(command)
   }
 
   function closeWindow(address) {
@@ -1254,7 +1292,8 @@ Panel {
                   implicitHeight: Math.max(root.iconPx, iconRow.implicitHeight) + Style.space(flat ? 8 : 4)
                   width: implicitWidth
                   height: implicitHeight
-                  property real dim: root.cfg.dimUnfocused && pill.active && !focusedHere && !hovered ? 0.5 : 1
+                  // A minimized window stays dimmed, including while the pointer is on it.
+                  property real dim: item && item.minimized ? 0.4 : (root.cfg.dimUnfocused && pill.active && !focusedHere && !hovered ? 0.5 : 1)
                   Behavior on dim { enabled: root.fastDur > 0; NumberAnimation { duration: root.fastDur } }
                   property real appear: 1
                   opacity: Math.min(1, appear)
@@ -1713,6 +1752,8 @@ Panel {
           // in, with one member of a group as the top hit target.
           z: rect && rect.floating ? (root.highlightAddress === modelData ? 4
             : root.highlightAddresses.indexOf(modelData) !== -1 ? 3 : thumbMouse.containsMouse ? 2 : 1) : 0
+          opacity: thumb.win && thumb.win.minimized ? 0.4 : 1
+          Behavior on opacity { enabled: root.fastDur > 0; NumberAnimation { duration: root.fastDur } }
 
           Behavior on x { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }
           Behavior on y { enabled: root.dur > 0; NumberAnimation { duration: root.dur; easing.type: Easing.OutCubic } }

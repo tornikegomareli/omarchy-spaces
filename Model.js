@@ -326,6 +326,58 @@ function appKey(appId) {
   return String(appId || "").toLowerCase()
 }
 
+// Minimized windows live on a special workspace. Keep their original regular
+// workspace and geometry, while refreshing their title, app id and toplevel.
+// Omarchy's origin tag also lets us recover windows minimized before startup.
+// Rebuilding from live windows drops closed windows and other special desktops.
+function windowPlacements(windows, previous) {
+  var out = {}
+  previous = previous || {}
+  for (var i = 0; i < windows.length; i++) {
+    var window = windows[i]
+    var key = normalizeAddress(window.address)
+    if (!key) continue
+    var saved = previous[key]
+    var minimized = window.workspaceName === "special:minimized"
+    var workspaceId = window.workspaceId
+    if (minimized) {
+      workspaceId = 0
+      // Quickshell moves the window onto special:minimized before IPC
+      // refreshes tags. Restore never clears omarchy-minimized-from-N, so
+      // for that gap the tag still names the previous workspace. The last
+      // visible placement is the one the user just left.
+      if (window.ipcWorkspaceName !== "special:minimized" && saved && !saved.minimized && saved.workspaceId > 0) {
+        workspaceId = saved.workspaceId
+      } else {
+        var tags = window.tags || []
+        for (var t = 0; t < tags.length; t++) {
+          var match = /^omarchy-minimized-from-([1-9][0-9]*)$/.exec(tags[t])
+          if (match) { workspaceId = Number(match[1]); break }
+        }
+        if (!workspaceId && saved) workspaceId = saved.workspaceId
+      }
+    }
+    if (!(workspaceId > 0)) continue
+    var placed = {}
+    for (var field in window) placed[field] = window[field]
+    placed.workspaceId = workspaceId
+    placed.minimized = minimized
+    // The workspace can change before Quickshell refreshes the IPC geometry.
+    // Once IPC catches up, its retained floating geometry includes any move
+    // immediately before minimizing; the previous visible snapshot may not.
+    if (minimized && saved && saved.workspaceId === workspaceId) {
+      placed.floating = saved.floating
+      placed.monitor = saved.monitor
+      if (window.ipcWorkspaceName !== "special:minimized") {
+        placed.at = saved.at
+        placed.size = saved.size
+      }
+    }
+    out[key] = placed
+  }
+  return out
+}
+
 // Orders windows the way they sit on screen: left to right, then top to
 // bottom. Windows without a known position keep their relative order.
 function sortWindows(windows) {
@@ -346,8 +398,8 @@ function sortWindows(windows) {
 }
 
 // Turns a sorted window list into render items.
-//   windows: [{ address, appId, title, focused }]
-// Returns { items: [{ key, address, appId, title, focused, count }], overflow }
+//   windows: [{ address, appId, title, focused, minimized }]
+// Returns { items: [{ key, address, appId, title, focused, minimized, count }], overflow }
 function iconItems(windows, groupApps, maxIcons) {
   var items = []
   if (groupApps) {
@@ -361,23 +413,35 @@ function iconItems(windows, groupApps, maxIcons) {
       k = k || w.address
       var existing = byApp[k]
       if (!existing) {
-        existing = { key: k, address: w.address, appId: w.appId, title: w.title, focused: w.focused, count: 1, addresses: [w.address] }
+        existing = { key: k, address: w.address, appId: w.appId, title: w.title, focused: !!w.focused, minimized: !!w.minimized, count: 1, addresses: [w.address] }
         byApp[k] = existing
         items.push(existing)
       } else {
         existing.count++
         existing.addresses.push(w.address)
-        if (w.focused) {
+        var visible = !w.minimized
+        // Clicking the icon focuses its main window. A minimized window
+        // would be restored, so a visible sibling takes that role instead.
+        if (visible && existing.minimized) {
+          existing.address = w.address
+          existing.appId = w.appId
+          existing.title = w.title
+          existing.minimized = false
+          existing.focused = !!w.focused
+        } else if (w.focused && visible === !existing.minimized) {
           existing.focused = true
           existing.address = w.address
+          existing.appId = w.appId
           existing.title = w.title
+          existing.minimized = !!w.minimized
         }
+        if (w.focused && visible) existing.focused = true
       }
     }
   } else {
     for (var j = 0; j < windows.length; j++) {
       var x = windows[j]
-      items.push({ key: x.address, address: x.address, appId: x.appId, title: x.title, focused: x.focused, count: 1, addresses: [x.address] })
+      items.push({ key: x.address, address: x.address, appId: x.appId, title: x.title, focused: x.focused, minimized: !!x.minimized, count: 1, addresses: [x.address] })
     }
   }
 
@@ -537,11 +601,18 @@ function iconClickTarget(item, mode, history, openAddresses) {
 // the pointer back where Hyprland's focus warp found it. keepScratchpad, while
 // a scratchpad has focus, switches the workspace under it instead: focusing
 // the window would close the scratchpad. Focus stays on the scratchpad, and
-// `event` tells the bar which window was picked.
+// `event` tells the bar which window was picked. restoreWorkspace moves a
+// minimized window off special:minimized before either branch.
 function focusWindowLua(target, opts) {
   var o = opts || {}
-  var lua = ["local w = assert(hl.get_window(" + JSON.stringify(target) + "))"]
+  var quoted = JSON.stringify(target)
+  var lua = ["local w = assert(hl.get_window(" + quoted + "))"]
   if (o.keepPointer) lua.push("local p = hl.get_cursor_pos()")
+  if (o.restoreWorkspace) {
+    lua.push(
+      "hl.dispatch(hl.dsp.window.move({ workspace = " + JSON.stringify(String(o.restoreWorkspace)) + ", follow = false, window = w }))",
+      "w = assert(hl.get_window(" + quoted + "))")
+  }
   if (o.keepScratchpad) {
     lua.push(
       "local m = w.monitor",
@@ -890,6 +961,7 @@ if (typeof module !== "undefined") {
     workspaceIds: workspaceIds, workspaceLabel: workspaceLabel, workspaceIcon: workspaceIcon, appKey: appKey,
     parseWorkspaceBlocks: parseWorkspaceBlocks, monitorWorkspaceBlock: monitorWorkspaceBlock,
     workspaceBlockOf: workspaceBlockOf, workspaceSlotOf: workspaceSlotOf,
+    windowPlacements: windowPlacements,
     sortWindows: sortWindows, iconItems: iconItems, truncate: truncate,
     focusedLabel: focusedLabel, webAppHost: webAppHost, webAppKey: webAppKey, chromiumAppKey: chromiumAppKey,
     execUrl: execUrl, webAppEntryIndex: webAppEntryIndex, appIdCandidates: appIdCandidates, iconPathScore: iconPathScore,

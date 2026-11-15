@@ -95,6 +95,96 @@ test("sortWindows orders by x then y, unknown last", () => {
   assert.deepStrictEqual(M.sortWindows(w).map(x => x.id), ["d", "c", "a", "b"])
 })
 
+test("minimizing keeps the workspace icon and the exact floating preview rectangle", () => {
+  const floating = { address: "0xA", appId: "editor", title: "Draft", workspaceId: 2,
+    workspaceName: "2", at: [320, 140], size: [900, 640], floating: true, monitor: 0 }
+  const neighbor = { address: "b", appId: "browser", workspaceId: 2,
+    workspaceName: "2", at: [100, 40], size: [800, 500], floating: true, monitor: 0 }
+  const area = {x: 0, y: 0, width: 2400, height: 1320}
+  const visible = M.windowPlacements([floating, neighbor], {})
+  const before = M.sortWindows(Object.values(visible))
+  let hidden = M.windowPlacements([{...floating, workspaceId: -99, workspaceName: "special:minimized",
+    at: [0, 0], size: [1, 1], tags: ["omarchy-minimized-from-2"], focused: false}, neighbor], visible)
+  assert.strictEqual(hidden.a.workspaceId, 2)
+  assert.strictEqual(hidden.a.minimized, true)
+  assert.deepStrictEqual(M.iconItems(M.sortWindows(Object.values(hidden)), false, 8).items.map(w => w.address),
+    M.iconItems(before, false, 8).items.map(w => w.address))
+  assert.deepStrictEqual(M.previewLayout(M.sortWindows(Object.values(hidden)), area, 260, 143),
+    M.previewLayout(before, area, 260, 143))
+  hidden = M.windowPlacements([{...hidden.a, title: "Updated", at: [12, 12]}], hidden)
+  assert.deepStrictEqual(hidden.a.at, floating.at)
+  assert.strictEqual(hidden.a.title, "Updated")
+  assert.strictEqual(hidden.b, undefined, "closed windows must be pruned")
+})
+
+test("startup finds minimized origins but excludes scratchpads and unclaimed special windows", () => {
+  const placements = M.windowPlacements([
+    {address: "a", workspaceId: -99, workspaceName: "special:minimized", tags: ["omarchy-minimized-from-12"],
+      at: [30, 50], size: [500, 300], floating: true},
+    {address: "b", workspaceId: -98, workspaceName: "special:scratchpad", tags: ["omarchy-minimized-from-2"]},
+    {address: "c", workspaceId: -99, workspaceName: "special:minimized", tags: ["omarchy-minimized-from-0"]},
+    {address: "d", workspaceId: 3, workspaceName: "3", tags: ["omarchy-minimized-from-2"]}
+  ], {})
+  assert.deepStrictEqual(Object.keys(placements), ["a", "d"])
+  assert.strictEqual(placements.a.workspaceId, 12)
+  assert.deepStrictEqual(placements.a.at, [30, 50])
+  assert.strictEqual(placements.d.workspaceId, 3, "restored windows ignore old origin tags")
+  assert.strictEqual(placements.d.minimized, false)
+})
+
+test("fresh minimized IPC includes a move made since the last visible snapshot", () => {
+  const visible = {address: "a", workspaceId: 2, workspaceName: "2", ipcWorkspaceName: "2",
+    at: [310, 180], size: [800, 500], floating: true, monitor: 0}
+  let placements = M.windowPlacements([visible], {})
+  const hidden = {...visible, workspaceId: -99, workspaceName: "special:minimized",
+    tags: ["omarchy-minimized-from-2"]}
+  placements = M.windowPlacements([hidden], placements)
+  assert.deepStrictEqual(placements.a.at, [310, 180], "workspace changes can precede fresh IPC")
+  placements = M.windowPlacements([{...hidden, ipcWorkspaceName: "special:minimized", at: [430, 230], monitor: 1}], placements)
+  assert.deepStrictEqual(placements.a.at, [430, 230], "the refreshed compositor geometry is authoritative")
+  assert.strictEqual(placements.a.monitor, 0, "the shared minimized workspace must not change the origin monitor")
+})
+
+test("restoring and minimizing elsewhere replaces the previous workspace and geometry", () => {
+  const first = {address: "a", workspaceId: 2, workspaceName: "2", at: [10, 20], size: [500, 300], floating: true}
+  let placements = M.windowPlacements([first], {})
+  placements = M.windowPlacements([{...first, workspaceId: -99, workspaceName: "special:minimized"}], placements)
+  assert.strictEqual(placements.a.workspaceId, 2, "cached origin covers minimizers without tags")
+  const restored = {...first, workspaceId: 3, workspaceName: "3", at: [600, 80], tags: ["omarchy-minimized-from-2"]}
+  placements = M.windowPlacements([restored], placements)
+  placements = M.windowPlacements([{...restored, workspaceId: -99, workspaceName: "special:minimized",
+    tags: ["omarchy-minimized-from-3"], at: [0, 0]}], placements)
+  assert.strictEqual(placements.a.workspaceId, 3)
+  assert.deepStrictEqual(placements.a.at, [600, 80])
+  const cold = M.windowPlacements([{...restored, workspaceId: -99, workspaceName: "special:minimized",
+    tags: ["omarchy-minimized-from-4"], at: [100, 100]}], placements)
+  assert.strictEqual(cold.a.workspaceId, 4)
+  assert.deepStrictEqual(cold.a.at, [100, 100], "a different origin must not inherit old geometry")
+})
+
+test("a stale origin tag keeps the workspace the window was restored to", () => {
+  const onTwo = {address: "a", workspaceId: 2, workspaceName: "2", ipcWorkspaceName: "2",
+    at: [10, 20], size: [100, 80], floating: true, monitor: 0}
+  let placements = M.windowPlacements([onTwo], {})
+  placements = M.windowPlacements([{...onTwo, workspaceId: -99, workspaceName: "special:minimized",
+    ipcWorkspaceName: "special:minimized", tags: ["omarchy-minimized-from-2"], at: [0, 0]}], placements)
+  // The dock restores onto workspace 5 and leaves the old origin tag in place.
+  const restored = {...onTwo, workspaceId: 5, workspaceName: "5", ipcWorkspaceName: "5",
+    at: [600, 80], tags: ["omarchy-minimized-from-2"]}
+  placements = M.windowPlacements([restored], placements)
+  assert.strictEqual(placements.a.workspaceId, 5)
+  assert.strictEqual(placements.a.minimized, false)
+  // Quickshell already reports special:minimized; IPC still has the old tag.
+  placements = M.windowPlacements([{...restored, workspaceId: -99, workspaceName: "special:minimized",
+    ipcWorkspaceName: "5", tags: ["omarchy-minimized-from-2"], at: [0, 0]}], placements)
+  assert.strictEqual(placements.a.minimized, true)
+  assert.strictEqual(placements.a.workspaceId, 5, "stale tag must not send the icon back to workspace 2")
+  assert.deepStrictEqual(placements.a.at, [600, 80])
+  placements = M.windowPlacements([{...placements.a, workspaceName: "special:minimized",
+    ipcWorkspaceName: "special:minimized", tags: ["omarchy-minimized-from-5"]}], placements)
+  assert.strictEqual(placements.a.workspaceId, 5)
+})
+
 test("iconItems groups same app and keeps focused address", () => {
   const r = M.iconItems([
     { address: "1", appId: "foot", title: "a", focused: false },
@@ -105,6 +195,30 @@ test("iconItems groups same app and keeps focused address", () => {
   assert.strictEqual(r.items[0].count, 2)
   assert.strictEqual(r.items[0].address, "3")
   assert.strictEqual(r.items[0].focused, true)
+})
+
+test("iconItems prefers a visible window over a minimized sibling", () => {
+  const grouped = M.iconItems([
+    { address: "1", appId: "foot", title: "hidden", focused: true, minimized: true },
+    { address: "2", appId: "Foot", title: "shown", focused: false, minimized: false }
+  ], true, 8)
+  assert.strictEqual(grouped.items.length, 1)
+  assert.strictEqual(grouped.items[0].address, "2")
+  assert.strictEqual(grouped.items[0].minimized, false)
+  assert.strictEqual(grouped.items[0].focused, false)
+  assert.strictEqual(grouped.items[0].count, 2)
+  const onlyHidden = M.iconItems([
+    { address: "1", appId: "foot", title: "a", focused: false, minimized: true },
+    { address: "2", appId: "foot", title: "b", focused: true, minimized: true }
+  ], true, 8)
+  assert.strictEqual(onlyHidden.items[0].address, "2")
+  assert.strictEqual(onlyHidden.items[0].minimized, true)
+  assert.strictEqual(onlyHidden.items[0].focused, true)
+  const single = M.iconItems([
+    { address: "9", appId: "foot", title: "alone", focused: false, minimized: true }
+  ], false, 8)
+  assert.strictEqual(single.items[0].minimized, true)
+  assert.strictEqual(single.items[0].address, "9")
 })
 
 test("iconItems leaves shell-hosted windows ungrouped", () => {
@@ -132,6 +246,23 @@ test("focusWindowLua focuses, raises floating windows, and adds only what is ask
   assert.ok(still.indexOf("get_cursor_pos") < still.indexOf("hl.dsp.focus"))
   assert.ok(still.lastIndexOf("cursor.move") > still.indexOf("alter_zorder"))
   assert.strictEqual(M.resolveSettings({}).keepScratchpad, false)
+})
+
+test("focusWindowLua restores a minimized window before either focus branch", () => {
+  const direct = M.focusWindowLua("address:0xabc", { restoreWorkspace: 5 })
+  const moved = direct.indexOf("hl.dsp.window.move")
+  assert.ok(moved > 0 && moved < direct.indexOf("hl.dsp.focus"))
+  assert.match(direct, /workspace = "5", follow = false, window = w/)
+  const scratch = M.focusWindowLua("address:0xabc", {
+    restoreWorkspace: 12, keepScratchpad: true, keepPointer: true, event: "x:background:abc"
+  })
+  const moveAt = scratch.indexOf("hl.dsp.window.move")
+  assert.ok(scratch.indexOf("get_cursor_pos") < moveAt)
+  assert.ok(moveAt < scratch.indexOf("not w.workspace.special"))
+  assert.ok(moveAt < scratch.indexOf("hl.dsp.focus"))
+  assert.ok(scratch.lastIndexOf("cursor.move") > scratch.indexOf("alter_zorder"))
+  const reread = scratch.indexOf("hl.get_window", scratch.indexOf("hl.get_window") + 1)
+  assert.ok(reread > moveAt && reread < scratch.indexOf("not w.workspace.special"))
 })
 
 test("focusWindowLua switches the workspace under a focused scratchpad only when asked", () => {
