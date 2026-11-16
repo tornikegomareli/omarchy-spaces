@@ -59,6 +59,12 @@
         "default": "subtle"
       },
       {
+        "key": "boldActive",
+        "type": "bool",
+        "label": "Bold active workspace",
+        "default": true
+      },
+      {
         "key": "iconHighlight",
         "type": "enum",
         "label": "Focused app highlight",
