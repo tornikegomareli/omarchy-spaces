@@ -1241,6 +1241,14 @@ Panel {
             font.bold: pill.active
             Behavior on color { enabled: root.fastDur > 0; ColorAnimation { duration: root.fastDur } }
             Behavior on opacity { enabled: root.fastDur > 0; NumberAnimation { duration: root.fastDur } }
+
+            // In the Windows preview style, the number shows every window
+            // again after an app icon narrowed the cards to one app. It sits
+            // beside the icons, off the path from an icon into the preview.
+            HoverHandler {
+              onHoveredChanged: if (hovered && root.cfg.previewStyle === "windows"
+                && root.highlightWorkspaceId === pill.workspaceId) root.clearPreviewHighlight()
+            }
           }
 
           // The icon strip is clipped and its extent animates, so icons slide
@@ -1678,7 +1686,7 @@ Panel {
           id: miniatureLoader
           anchors.fill: parent
           active: preview.visible && preview.workspace !== null
-          sourceComponent: miniatureComponent
+          sourceComponent: root.cfg.previewStyle === "windows" ? cardsComponent : miniatureComponent
         }
 
         Connections {
@@ -1829,6 +1837,129 @@ Panel {
             }
             onClicked: {
               root.focusWindow(thumb.modelData)
+              root.hidePreview()
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Previews → Preview style → Windows: one card per window with its title,
+  // in place of the miniature. A hovered app icon narrows it to that app.
+  Component {
+    id: cardsComponent
+
+    Item {
+      id: cards
+      readonly property real labelHeight: cardFont.height + Style.space(6)
+      readonly property var layout: preview.workspace
+        ? Model.windowCards(preview.workspace.windows,
+          root.highlightWorkspaceId === root.previewWorkspaceId ? root.highlightAddresses : [],
+          width, height, labelHeight) : []
+      readonly property var rects: {
+        var map = ({})
+        for (var i = 0; i < layout.length; i++) map[layout[i].address] = layout[i]
+        return map
+      }
+
+      FontMetrics {
+        id: cardFont
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      Repeater {
+        model: ScriptModel { values: cards.layout.map(function(r) { return r.address }) }
+
+        delegate: Item {
+          id: card
+          required property var modelData
+          readonly property var rect: cards.rects[modelData] || null
+          readonly property var win: root.windowByAddress(modelData)
+          readonly property var info: win ? root.appInfo(win.appId, win.title) : null
+          readonly property bool highlighted: root.highlightAddress === modelData || cardMouse.containsMouse
+
+          x: rect ? rect.x : 0
+          y: rect ? rect.y : 0
+          width: rect ? rect.width : 0
+          height: rect ? rect.height : 0
+          opacity: card.win && card.win.minimized ? 0.4 : 1
+          Behavior on opacity { enabled: root.fastDur > 0; NumberAnimation { duration: root.fastDur } }
+
+          Item {
+            id: shot
+            x: card.rect ? card.rect.thumb.x : 0
+            y: card.rect ? card.rect.thumb.y : 0
+            width: card.rect ? Math.max(2, card.rect.thumb.width) : 0
+            height: card.rect ? Math.max(2, card.rect.thumb.height) : 0
+
+            ScreencopyView {
+              id: cardCapture
+              anchors.fill: parent
+              captureSource: card.win ? card.win.toplevel : null
+              live: root.cfg.previewLive
+              constraintSize: Qt.size(Math.round(shot.width * 2), Math.round(shot.height * 2))
+              opacity: hasContent ? 1 : 0
+              Behavior on opacity { enabled: root.fastDur > 0; NumberAnimation { duration: root.fastDur } }
+            }
+
+            // Placeholder until the first frame arrives.
+            Rectangle {
+              anchors.fill: parent
+              visible: !cardCapture.hasContent
+              color: Util.alpha(root.fg, 0.08)
+            }
+
+            Rectangle {
+              anchors.fill: parent
+              color: "transparent"
+              border.width: card.highlighted ? 2 : 1
+              border.color: card.highlighted ? Color.accent : Util.alpha(root.fg, 0.18)
+              Behavior on border.color { enabled: root.fastDur > 0; ColorAnimation { duration: root.fastDur } }
+            }
+          }
+
+          Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: shot.y + shot.height + Style.space(4)
+            width: Math.min(implicitWidth, card.width)
+            spacing: Style.space(4)
+
+            Image {
+              id: cardIcon
+              anchors.verticalCenter: parent.verticalCenter
+              width: cardFont.height
+              height: width
+              source: card.info ? card.info.source : ""
+              sourceSize.width: width * 2
+              sourceSize.height: height * 2
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
+              visible: status === Image.Ready
+            }
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              width: Math.min(implicitWidth, card.width - (cardIcon.visible ? cardIcon.width + parent.spacing : 0))
+              text: card.win ? (card.win.title || (card.info ? card.info.name : "")) : ""
+              textFormat: Text.PlainText
+              color: root.fg
+              opacity: card.highlighted ? 1 : 0.75
+              elide: Text.ElideRight
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+          }
+
+          MouseArea {
+            id: cardMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onContainsMouseChanged: if (containsMouse) root.selectThumbnail(card.modelData)
+            onClicked: {
+              root.focusWindow(card.modelData)
               root.hidePreview()
             }
           }
