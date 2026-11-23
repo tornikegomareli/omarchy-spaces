@@ -95,6 +95,40 @@ FloatingWindow {
       workspacePreviews()
       previewHandoff()
       handoffTimeout()
+      windowCardsPreview()
+    }
+    // Preview style Windows: one card per window, a hovered app narrows the
+    // cards to its windows, and clicking a card focuses that window.
+    function windowCardsPreview() {
+      widget.applySetting({previews: true, previewStyle: "windows", previewLive: false})
+      wait(50)
+      var id = widget.currentWorkspaceId
+      var windows = widget.workspaceMap[id] ? widget.workspaceMap[id].windows : []
+      check(windows.length > 0 && widget.peek(id), "Could not open the windows preview")
+      wait(100)
+      var card = null
+      for (var resource of widget.resources) {
+        if (resource.mapWidth !== undefined && resource.triggerMode === "hover") card = resource
+      }
+      function cards() {
+        var found = []
+        for (var content of card.contentItem) collect(content, function(item) {
+          return item.rect !== undefined && !!item.rect && item.rect.thumb !== undefined
+        }, found)
+        return found
+      }
+      check(cards().length === windows.length, "Expected one card per window, got " + cards().length)
+      var target = windows[windows.length - 1].address
+      widget.highlightWorkspaceId = id
+      widget.highlightAddresses = [target]
+      wait(50)
+      var shown = cards()
+      check(shown.length === 1 && shown[0].modelData === target, "A hovered app did not narrow the cards to its windows")
+      var sent = sentBy(function() { mouseClick(shown[0], shown[0].width / 2, shown[0].height / 2) })
+      check(sent.indexOf("address:0x" + Model.normalizeAddress(target)) !== -1 && !widget.previewOpen,
+        "Clicking a card did not focus its window and close the preview: " + sent)
+      widget.applySetting({previewStyle: "workspace"})
+      console.log("PASS: windows preview shows a card per window, narrows to a hovered app, and a click focuses")
     }
     // A pending icon-to-thumbnail handoff ignores a quick crossing of another
     // thumbnail, but resting on one hands the selection to it.

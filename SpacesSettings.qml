@@ -371,6 +371,16 @@ Item {
 
           ChoiceSetting {
             visible: root.cfg.previews
+            title: "PREVIEW STYLE"
+            key: "previewStyle"
+            options: [
+              { value: "workspace", label: "Workspace" },
+              { value: "windows", label: "Windows" }
+            ]
+          }
+
+          ChoiceSetting {
+            visible: root.cfg.previews
             title: "PREVIEW SIZE"
             key: "previewSize"
             options: [

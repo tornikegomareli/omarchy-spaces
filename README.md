@@ -18,6 +18,12 @@ Hover another workspace to see it live, laid out the way it is on screen. Click 
 omarchy bar set tornikegomareli.spaces previewActive true --json
 ```
 
+**Previews → Preview style → Windows** shows one card per window with its title instead of the miniature. Click a card to jump to that window. Hovering an app icon shows only that app's windows, and hovering the workspace number shows them all again. The default stays **Workspace**:
+
+```sh
+omarchy bar set tornikegomareli.spaces previewStyle windows
+```
+
 Minimized floating windows keep their icons on their original workspace and
 remain in the preview at their previous position and size. Their icons and
 thumbnails are dimmed. Click either one to restore the window on that

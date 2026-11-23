@@ -593,6 +593,43 @@ test("preview settings validate", () => {
   assert.strictEqual(M.previewWidth("large"), 520)
 })
 
+test("preview style defaults to the workspace miniature", () => {
+  assert.strictEqual(M.resolveSettings({}).previewStyle, "workspace")
+  assert.strictEqual(M.resolveSettings({ previewStyle: "windows" }).previewStyle, "windows")
+  assert.strictEqual(M.resolveSettings({ previewStyle: "cards" }).previewStyle, "workspace")
+})
+
+test("windowCards gives every window a card inside the box", () => {
+  const windows = [{ address: "a", size: [800, 600] }, { address: "b", size: [800, 600] }, { address: "c", size: null }]
+  const cards = M.windowCards(windows, [], 400, 300, 20)
+  assert.deepStrictEqual(cards.map(c => c.address), ["a", "b", "c"])
+  for (const c of cards) {
+    assert.ok(c.x >= 0 && c.y >= 0 && c.x + c.width <= 400 + 1e-9 && c.y + c.height <= 300 + 1e-9)
+    assert.ok(c.thumb.height + 20 <= c.height + 1e-9)
+  }
+  // Two columns, so the third card starts the second row.
+  assert.strictEqual(cards[2].x, 0)
+  assert.ok(cards[2].y > cards[0].y)
+})
+
+test("windowCards keeps each window's aspect ratio and fills the cell without a size", () => {
+  const [wide, unknown] = M.windowCards([{ address: "a", size: [1600, 400] }, { address: "b" }], null, 400, 200, 20)
+  assert.ok(Math.abs(wide.thumb.width / wide.thumb.height - 4) < 1e-9)
+  assert.ok(wide.thumb.width <= wide.width + 1e-9)
+  assert.strictEqual(unknown.thumb.width, unknown.width)
+  assert.strictEqual(unknown.thumb.height, unknown.height - 20)
+})
+
+test("windowCards narrows to a hovered app and falls back to all windows", () => {
+  const windows = [{ address: "a" }, { address: "b" }, { address: "c" }]
+  assert.deepStrictEqual(M.windowCards(windows, ["c", "a"], 300, 200, 20).map(c => c.address), ["a", "c"])
+  // One card fills the whole box.
+  const [only] = M.windowCards(windows, ["b"], 300, 200, 20)
+  assert.deepStrictEqual([only.address, only.x, only.y, only.width, only.height], ["b", 0, 0, 300, 200])
+  // A group from another workspace, or a closed window, shows them all.
+  assert.strictEqual(M.windowCards(windows, ["zz"], 300, 200, 20).length, 3)
+})
+
 test("appIdCandidates adds the last reverse-DNS segment", () => {
   assert.deepStrictEqual(M.appIdCandidates("dev.tgomareli.logi-kvm-console"), ["dev.tgomareli.logi-kvm-console", "logi-kvm-console"])
   assert.deepStrictEqual(M.appIdCandidates("Slack"), ["Slack", "slack"])

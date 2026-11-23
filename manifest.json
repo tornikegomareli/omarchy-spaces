@@ -290,6 +290,16 @@
         "default": false
       },
       {
+        "key": "previewStyle",
+        "type": "enum",
+        "label": "Preview style",
+        "options": [
+          "workspace",
+          "windows"
+        ],
+        "default": "workspace"
+      },
+      {
         "key": "previewSize",
         "type": "enum",
         "label": "Preview size",

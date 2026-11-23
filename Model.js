@@ -40,6 +40,7 @@ var DEFAULTS = {
   settingsButton: "never",    // gear button: "hover" | "always" | "never"
   previews: true,             // live preview of a workspace on hover
   previewActive: false,       // also preview the current workspace on hover
+  previewStyle: "workspace",  // "workspace" (miniature) | "windows" (one card per window)
   previewSize: "medium",      // "small" | "medium" | "large"
   previewLive: true,          // keep previews streaming; false = one frame
   agentStatus: true,          // badges for coding agents running in terminals
@@ -58,6 +59,7 @@ var ACTIVE_CLICKS = ["none", "previous"]
 var ACTIVE_ICON_CLICKS = ["cycle", "previous"]
 var SETTINGS_BUTTONS = ["hover", "always", "never"]
 var PREVIEW_SIZES = ["small", "medium", "large"]
+var PREVIEW_STYLES = ["workspace", "windows"]
 var ACTIVE_STYLES = ["subtle", "solid", "accent"]
 var ICON_HIGHLIGHTS = ["tile", "dot"]
 var LABEL_STYLES = ["number", "glyph", "none", "custom"]
@@ -117,6 +119,7 @@ function resolveSettings(raw) {
     settingsButton: oneOf(s.settingsButton, SETTINGS_BUTTONS, d.settingsButton),
     previews: bool(s.previews, d.previews),
     previewActive: bool(s.previewActive, d.previewActive),
+    previewStyle: oneOf(s.previewStyle, PREVIEW_STYLES, d.previewStyle),
     previewSize: oneOf(s.previewSize, PREVIEW_SIZES, d.previewSize),
     previewLive: bool(s.previewLive, d.previewLive),
     agentStatus: bool(s.agentStatus, d.agentStatus),
@@ -821,6 +824,38 @@ function previewLayout(windows, area, width, height) {
   return placed
 }
 
+// The "windows" preview style: one card per window in an even grid inside a
+// width x height box, each with a strip of labelHeight px for its title.
+// `group` (addresses of a hovered app icon) narrows the cards to that app;
+// when none of it is on this workspace, every window gets a card. The
+// thumbnail keeps the window's own aspect ratio, centred in its cell.
+//   windows: [{ address, size: [w, h] | null }]
+// Returns [{ address, x, y, width, height, thumb: { x, y, width, height } }]
+function windowCards(windows, group, width, height, labelHeight) {
+  var picked = windows.filter(function(w) { return (group || []).indexOf(w.address) !== -1 })
+  if (picked.length === 0) picked = windows
+  var n = picked.length
+  var cols = Math.max(1, Math.ceil(Math.sqrt(n)))
+  var rows = Math.max(1, Math.ceil(n / cols))
+  var gap = 8
+  var cw = (width - gap * (cols - 1)) / cols
+  var ch = (height - gap * (rows - 1)) / rows
+  var room = { width: cw, height: Math.max(1, ch - labelHeight) }
+  return picked.map(function(w, i) {
+    var fit = room
+    if (w.size && w.size[0] > 0 && w.size[1] > 0) {
+      var k = Math.min(room.width / w.size[0], room.height / w.size[1])
+      fit = { width: w.size[0] * k, height: w.size[1] * k }
+    }
+    return {
+      address: w.address,
+      x: (i % cols) * (cw + gap), y: Math.floor(i / cols) * (ch + gap),
+      width: cw, height: ch,
+      thumb: { x: (cw - fit.width) / 2, y: (room.height - fit.height) / 2, width: fit.width, height: fit.height }
+    }
+  })
+}
+
 // Maps window addresses to agent states. `agents`: { session: { state, pids,
 // address } } where pids run from the agent up to init; `windows`:
 // [{ address, pid }]. The nearest ancestor that is a window owns the agent,
@@ -957,7 +992,7 @@ if (typeof module !== "undefined") {
     parsePids: parsePids, normalizeAgentState: normalizeAgentState,
     agentProcessIds: agentProcessIds, pruneDeadAgents: pruneDeadAgents,
     agentAppId: agentAppId, agentFor: agentFor,
-    previewWidth: previewWidth, previewDimensions: previewDimensions, monitorArea: monitorArea, previewLayout: previewLayout, durationFor: durationFor,
+    previewWidth: previewWidth, previewDimensions: previewDimensions, monitorArea: monitorArea, previewLayout: previewLayout, windowCards: windowCards, durationFor: durationFor,
     workspaceIds: workspaceIds, workspaceLabel: workspaceLabel, workspaceIcon: workspaceIcon, appKey: appKey,
     parseWorkspaceBlocks: parseWorkspaceBlocks, monitorWorkspaceBlock: monitorWorkspaceBlock,
     workspaceBlockOf: workspaceBlockOf, workspaceSlotOf: workspaceSlotOf,
