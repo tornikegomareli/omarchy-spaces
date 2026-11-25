@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Agent logos now show on Omarchy's own agent terminal (`org.omarchy.agent`,
+  opened by `omarchy-agent`), which was missing from the terminals whose title
+  gets checked (from #50)
+
 ## 1.8.0
 
 - Hovering an app icon highlights all its windows in the preview and brings

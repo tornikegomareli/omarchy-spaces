@@ -738,6 +738,13 @@ test("app icons ask the icon theme before the disk index", () => {
   assert.ok(body.indexOf("Quickshell.iconPath") < body.indexOf("iconIndex"))
 })
 
+test("agentAppId recognises agents in omarchy-agent windows", () => {
+  const a = "org.omarchy.agent"
+  assert.strictEqual(M.agentAppId(a, "\u25d0 Tidy up the bar"), "agent.claude")
+  assert.strictEqual(M.agentAppId(a, "\u280b scratchpad"), "agent.codex")
+  assert.strictEqual(M.agentAppId(a, "~/code"), a)
+})
+
 test("agentAppId recognises Claude Code, Codex and Grok terminals", () => {
   const g = "com.mitchellh.ghostty"
   assert.strictEqual(M.agentAppId(g, "\u25d1 Omarchy plugin skills"), "agent.claude")
