@@ -106,7 +106,7 @@ Panel {
     root.workspaceBlocks, root.monitor ? root.monitor.name : "", cfg.perMonitor)
 
   FileView {
-    path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/monitor-workspaces"
+    path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/monitors/workspaces"
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
@@ -1638,7 +1638,8 @@ Panel {
           anchors.right: previewCount.left
           anchors.rightMargin: Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
-          text: "Workspace " + (root.previewWorkspaceId === 10 ? "0" : root.previewWorkspaceId)
+          text: "Workspace " + Model.workspaceLabel(root.previewWorkspaceId, false, "number", root.workspaceBlock)
+          textFormat: Text.PlainText
           color: root.fg
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
