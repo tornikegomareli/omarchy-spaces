@@ -52,6 +52,11 @@ Panel {
   readonly property int barSize: bar ? bar.barSize : Style.bar.sizeHorizontal
   readonly property color fg: bar ? bar.barForeground : Color.foreground
   readonly property color bg: bar ? bar.background : Color.background
+  // Popup cards sit on the shell's opaque popup surface, not on the bar. With a
+  // transparent bar `barForeground` is sampled from the wallpaper and can be as
+  // dark as that surface, which left panel and preview text unreadable.
+  readonly property color fgPopup: Color.popups.text
+  readonly property color bgPopup: Color.popups.background
   // White agent marks swap to their dark twin on a light bar.
   readonly property bool lightBar: 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b >= 0.5
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
@@ -106,7 +111,7 @@ Panel {
     root.workspaceBlocks, root.monitor ? root.monitor.name : "", cfg.perMonitor)
 
   FileView {
-    path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/monitor-workspaces"
+    path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/monitors/workspaces"
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
@@ -1616,7 +1621,7 @@ Panel {
       anchors.fill: parent
       anchors.margins: -Math.max(0, preview.padding - Style.space(2))
       radius: Math.max(0, Style.cornerRadius - Style.space(2))
-      color: Qt.rgba(root.bg.r, root.bg.g, root.bg.b, 0.97)
+      color: Util.alpha(root.bgPopup, 0.97)
     }
 
     Column {
@@ -1638,8 +1643,9 @@ Panel {
           anchors.right: previewCount.left
           anchors.rightMargin: Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
-          text: "Workspace " + (root.previewWorkspaceId === 10 ? "0" : root.previewWorkspaceId)
-          color: root.fg
+          text: "Workspace " + Model.workspaceLabel(root.previewWorkspaceId, false, "number", root.workspaceBlock)
+          textFormat: Text.PlainText
+          color: root.fgPopup
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
           font.bold: true
@@ -1652,7 +1658,7 @@ Panel {
           anchors.verticalCenter: parent.verticalCenter
           readonly property int count: preview.workspace ? preview.workspace.windows.length : 0
           text: count + (count === 1 ? " WINDOW" : " WINDOWS")
-          color: Qt.darker(root.fg, 1.4)
+          color: Util.alpha(root.fgPopup, 0.7)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
           font.bold: true
@@ -1669,9 +1675,9 @@ Panel {
         Rectangle {
           anchors.fill: parent
           radius: Style.cornerRadius > 0 ? Style.space(6) : 0
-          color: Util.alpha(root.fg, 0.05)
+          color: Util.alpha(root.fgPopup, 0.05)
           border.width: 1
-          border.color: Util.alpha(root.fg, 0.08)
+          border.color: Util.alpha(root.fgPopup, 0.08)
         }
 
         Loader {
@@ -1702,7 +1708,7 @@ Panel {
         readonly property var hovered: root.windowByAddress(root.highlightAddress)
         text: hovered ? hovered.title : "Click a window to jump to it"
         textFormat: Text.PlainText
-        color: root.fg
+        color: root.fgPopup
         opacity: hovered ? 0.9 : 0.5
         elide: Text.ElideRight
         horizontalAlignment: Text.AlignHCenter
@@ -1774,14 +1780,14 @@ Panel {
           Rectangle {
             anchors.fill: parent
             visible: !capture.hasContent
-            color: Util.alpha(root.fg, 0.08)
+            color: Util.alpha(root.fgPopup, 0.08)
           }
 
           Rectangle {
             anchors.fill: parent
             color: "transparent"
             border.width: thumb.highlighted ? 2 : 1
-            border.color: thumb.highlighted ? Color.accent : Util.alpha(root.fg, 0.18)
+            border.color: thumb.highlighted ? Color.accent : Util.alpha(root.fgPopup, 0.18)
             Behavior on border.color { enabled: root.fastDur > 0; ColorAnimation { duration: root.fastDur } }
           }
 
@@ -1795,7 +1801,7 @@ Panel {
             width: Style.space(20)
             height: width
             radius: Style.cornerRadius > 0 ? Style.space(5) : 0
-            color: Util.alpha(root.bg, 0.85)
+            color: Util.alpha(root.bgPopup, 0.85)
 
             Image {
               anchors.centerIn: parent
@@ -1854,7 +1860,7 @@ Panel {
       anchors.fill: parent
       cfg: root.cfg
       bar: root.bar
-      fg: root.fg
+      fg: root.fgPopup
       fontFamily: root.fontFamily
       onSettingChanged: function(delta) { root.applySetting(delta) }
       onResetRequested: root.resetSettings()

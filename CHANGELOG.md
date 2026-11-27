@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Read the monitor blocks from `~/.local/state/omarchy/monitors/workspaces`,
+  where Omarchy 4.5 writes them now, so a per-monitor bar numbers its own
+  workspaces 1-10 instead of showing the global ids (#40, #61)
+- The settings panel and the preview card use the popup colours instead of the
+  bar text colour, which was unreadable on a bar without a background (#65)
+
 ## 1.8.0
 
 - Hovering an app icon highlights all its windows in the preview and brings
