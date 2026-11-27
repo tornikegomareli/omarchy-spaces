@@ -120,6 +120,8 @@ Panel {
 
   property var windowFocusHistory: []
   property string pendingWindowFocus: ""
+  // Window of the last activewindowv2 event, to tell a retitle from a focus change.
+  property string lastActiveEvent: ""
 
   function liveWindowAddresses() {
     // Spaces represents regular workspaces. An overlay must not become the
@@ -388,8 +390,31 @@ Panel {
   }
 
   property var windowPlacements: ({})
-  readonly property var windowSnapshots: {
-    root.revision
+  property var windowSnapshots: []
+
+  // Every Hyprland.refreshToplevels() re-announces each window's address,
+  // changed or not, so a binding that walked all windows re-ran once per
+  // window per refresh. Each window watches only itself instead, and the
+  // snapshot is built once per event-loop turn.
+  Instantiator {
+    model: Hyprland.toplevels
+    delegate: QtObject {
+      required property var modelData
+      readonly property var watched: {
+        var ws = modelData.workspace
+        var wl = modelData.wayland
+        return [modelData.address, modelData.title, modelData.lastIpcObject, ws, ws ? ws.id : -1,
+          ws ? ws.name : "", ws ? ws.monitor : null, wl, wl ? wl.appId : "", wl ? wl.activated : false]
+      }
+      onWatchedChanged: Qt.callLater(root.updateWindowSnapshots)
+    }
+  }
+
+  readonly property var windowSnapshotInputs: [root.revision, Hyprland.toplevels.values,
+    Hyprland.activeToplevel, root.cfg.agentIcons]
+  onWindowSnapshotInputsChanged: Qt.callLater(root.updateWindowSnapshots)
+
+  function updateWindowSnapshots() {
     var toplevels = Hyprland.toplevels.values
     var activeToplevel = Hyprland.activeToplevel
     var windows = []
@@ -410,14 +435,18 @@ Panel {
         workspaceId: ws ? ws.id : -1,
         workspaceName: ws ? ws.name : "",
         ipcWorkspaceName: ipc.workspace ? ipc.workspace.name : "",
-        tags: ipc.tags || [],
+        // A plain array, so placementsEqual compares it by content.
+        tags: Array.from(ipc.tags || []),
         monitor: ws ? ws.monitor : null
       })
     }
-    return windows
+    root.windowSnapshots = windows
+    // Most refreshes change nothing. A new value rebuilds every pill, which
+    // drops frames in whatever the bar is animating, so only hand one over
+    // when something changed.
+    var next = Model.windowPlacements(windows, root.windowPlacements)
+    if (!Model.placementsEqual(next, root.windowPlacements)) root.windowPlacements = next
   }
-
-  onWindowSnapshotsChanged: root.windowPlacements = Model.windowPlacements(root.windowSnapshots, root.windowPlacements)
 
   function workspaceArea(mon) {
     return mon ? Model.monitorArea({
@@ -563,12 +592,15 @@ Panel {
         root.rememberFocusedWindow(event.data)
         root.hideHeldNumbers()
         root.setUrgent(event.data, false)
-        refreshDebounce.restart()
+        // Hyprland repeats this event each time the focused window retitles
+        // itself, as agent terminals do several times a second.
+        if (event.data !== root.lastActiveEvent) root.refreshForEvent()
+        root.lastActiveEvent = event.data
         break
       case "closewindow":
         root.hideHeldNumbers()
         root.setUrgent(event.data, false)
-        refreshDebounce.restart()
+        root.refreshForEvent()
         break
       case "moveworkspace":
       case "moveworkspacev2":
@@ -601,14 +633,13 @@ Panel {
         break
       case "openwindow":
         root.hideHeldNumbers()
-        refreshDebounce.restart()
+        root.refreshForEvent()
         break
       case "movewindow":
       case "movewindowv2":
       case "changefloatingmode":
-      case "windowtitle":
-      case "windowtitlev2":
-        refreshDebounce.restart()
+        // Not windowtitle: Quickshell keeps toplevel titles current itself.
+        root.refreshForEvent()
         break
       }
     }
@@ -631,6 +662,13 @@ Panel {
       Hyprland.refreshWorkspaces()
       revisionBump.restart()
     }
+  }
+
+  // Hyprland's window list is shared by every bar, so only the first bar
+  // refreshes it for Hyprland's events; the others see the same windows update.
+  function refreshForEvent() {
+    var items = root.bar && typeof root.bar.moduleWidgets === "function" ? root.bar.moduleWidgets(root.moduleName) : []
+    if (items.indexOf(root) <= 0) refreshDebounce.restart()
   }
 
   Timer {
@@ -838,6 +876,7 @@ Panel {
   }
 
   Component.onCompleted: {
+    root.updateWindowSnapshots()
     root.rememberFocusedWindow()
     // Touching the list starts Quickshell's desktop-entry scan.
     DesktopEntries.applications.values
@@ -914,9 +953,10 @@ Panel {
     if (hovered && root.hoverPreviewAllowed(pill)) {
       previewHideTimer.stop()
       root.previewPill = pill
-      // Hyprland sends no event when a floating window moves or resizes,
-      // so re-read positions before the miniature draws them.
-      refreshDebounce.restart()
+      // Re-read positions before the miniature draws them, but only when they
+      // can have changed unannounced: the refresh lands in the middle of the
+      // pill's expand animation.
+      if (root.mayHaveMoved(pill.workspace)) refreshDebounce.restart()
       if (root.previewOpen) {
         // Already showing: follow the pointer right away.
         root.previewWorkspaceId = pill.workspaceId
@@ -936,6 +976,14 @@ Panel {
     peekTimer.stop()
     root.previewWanted = false
     root.clearPreviewHighlight()
+  }
+
+  // Hyprland sends no event when a floating window moves, or when a workspace
+  // on screen lays out again (a resize, a swap, a gap change). A workspace off
+  // screen keeps its layout, and leaving one moves focus, which refreshes.
+  function mayHaveMoved(workspace) {
+    return workspace.windows.some(function(w) { return w.floating })
+      || Hyprland.monitors.values.some(function(m) { return m.activeWorkspace && m.activeWorkspace.id === workspace.id })
   }
 
   function placePreviewAnchor(animate) {
@@ -975,7 +1023,7 @@ Panel {
     var pill = idx >= 0 ? pillRepeater.itemAt(idx) : null
     if (!pill || !pill.occupied) return false
     previewHideTimer.stop()
-    refreshDebounce.restart()
+    if (root.mayHaveMoved(pill.workspace)) refreshDebounce.restart()
     root.previewPill = pill
     root.previewWorkspaceId = pill.workspaceId
     root.placePreviewAnchor(root.previewOpen)

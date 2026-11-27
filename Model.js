@@ -378,6 +378,29 @@ function windowPlacements(windows, previous) {
   return out
 }
 
+// Whether two sets of placements show the same thing. Every IPC refresh hands
+// back fresh objects with the same content, so this keeps a no-op refresh from
+// rebuilding every pill. Handles (toplevels, monitors) compare by identity: a
+// new handle can print the same as a destroyed one, since memory gets reused.
+function placementsEqual(a, b) {
+  a = a || {}
+  b = b || {}
+  var keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  for (var i = 0; i < keys.length; i++) {
+    var left = a[keys[i]], right = b[keys[i]]
+    if (!right) return false
+    var fields = Object.keys(left)
+    if (fields.length !== Object.keys(right).length) return false
+    for (var j = 0; j < fields.length; j++) {
+      var x = left[fields[j]], y = right[fields[j]]
+      if (x === y) continue
+      if (!Array.isArray(x) || !Array.isArray(y) || JSON.stringify(x) !== JSON.stringify(y)) return false
+    }
+  }
+  return true
+}
+
 // Orders windows the way they sit on screen: left to right, then top to
 // bottom. Windows without a known position keep their relative order.
 function sortWindows(windows) {
@@ -961,7 +984,7 @@ if (typeof module !== "undefined") {
     workspaceIds: workspaceIds, workspaceLabel: workspaceLabel, workspaceIcon: workspaceIcon, appKey: appKey,
     parseWorkspaceBlocks: parseWorkspaceBlocks, monitorWorkspaceBlock: monitorWorkspaceBlock,
     workspaceBlockOf: workspaceBlockOf, workspaceSlotOf: workspaceSlotOf,
-    windowPlacements: windowPlacements,
+    windowPlacements: windowPlacements, placementsEqual: placementsEqual,
     sortWindows: sortWindows, iconItems: iconItems, truncate: truncate,
     focusedLabel: focusedLabel, webAppHost: webAppHost, webAppKey: webAppKey, chromiumAppKey: chromiumAppKey,
     execUrl: execUrl, webAppEntryIndex: webAppEntryIndex, appIdCandidates: appIdCandidates, iconPathScore: iconPathScore,

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Smoother hover animations, most noticeably across workspaces with several
+  apps. Each window-list refresh made the widget rebuild every pill once per
+  open window, even when nothing had changed. It now rebuilds once, and only
+  when something it shows changed. It also refreshes less: once for all bars
+  instead of once per bar, not when a window retitles itself (agent terminals
+  do so several times a second), and on hover only where windows can have
+  moved without Hyprland announcing it: floating windows and workspaces on
+  screen
+
 ## 1.8.0
 
 - Hovering an app icon highlights all its windows in the preview and brings

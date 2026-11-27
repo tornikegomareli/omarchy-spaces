@@ -896,4 +896,31 @@ test("workspaceIcon falls back to the label and honours precedence", () => {
   assert.strictEqual(M.workspaceIcon(named, 11, true), "\u2699")
 })
 
+test("placementsEqual holds only while nothing a pill shows changed", () => {
+  const handle = { kind: "toplevel" }
+  const monitor = { kind: "monitor" }
+  const win = (over) => Object.assign({
+    address: "abc", appId: "foot", title: "t", focused: false, at: [0, 0], size: [10, 10],
+    floating: false, pid: 1, toplevel: handle, workspaceId: 1, workspaceName: "1",
+    ipcWorkspaceName: "1", tags: [], monitor: monitor
+  }, over || {})
+  const base = M.windowPlacements([win()], {})
+  // Fresh objects with equal content (what every IPC refresh produces) match.
+  assert.ok(M.placementsEqual(M.windowPlacements([win()], {}), base))
+  for (const change of [{ title: "u" }, { focused: true }, { at: [5, 0] }, { size: [10, 11] },
+      { floating: true }, { workspaceId: 2 }, { tags: ["x"] }, { toplevel: null },
+      { toplevel: { kind: "toplevel" } }, { monitor: { kind: "monitor" } }])
+    assert.ok(!M.placementsEqual(M.windowPlacements([win(change)], {}), base), JSON.stringify(change))
+  // A new handle can print the same as a destroyed one; it must still differ.
+  const printed = () => ({ toString: () => "HyprlandMonitor(0x1)" })
+  assert.ok(!M.placementsEqual(M.windowPlacements([win({ monitor: printed() })], {}),
+    M.windowPlacements([win({ monitor: printed() })], {})))
+  assert.ok(!M.placementsEqual({}, base))
+  assert.ok(!M.placementsEqual(base, {}))
+  // Key order must not matter.
+  const two = [win(), win({ address: "def" })]
+  assert.ok(M.placementsEqual(M.windowPlacements(two, {}), M.windowPlacements(two.slice().reverse(), {})))
+  assert.ok(!M.placementsEqual(M.windowPlacements(two, {}), base))
+})
+
 if (failed) { console.log(failed + " failed"); process.exit(1) }
